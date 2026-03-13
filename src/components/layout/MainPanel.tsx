@@ -7,6 +7,7 @@ import { tauriCommands } from "../../lib/tauri-commands";
 import type { NoteFrontmatter } from "../../types/note";
 import { EisenhowerView } from "../../views/EisenhowerView";
 import { KanbanView } from "../../views/KanbanView";
+import { DashboardView } from "../../views/DashboardView";
 
 export function MainPanel() {
   const { activeView } = useUIStore();
@@ -65,6 +66,8 @@ export function MainPanel() {
   if (activeView === "eisenhower") return <EisenhowerView />;
 
   if (activeView === "kanban") return <KanbanView />;
+
+  if (activeView === "dashboard") return <DashboardView />;
 
   return (
     <div className="flex flex-1 h-full items-center justify-center text-[var(--color-text-muted)]">
