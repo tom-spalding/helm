@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useUIStore, type View } from "../../store/ui";
+import { TagTree } from "../sidebar/TagTree";
+import { useNoteStore } from "../../store/notes";
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: "notes", label: "All Notes", icon: "📝" },
@@ -12,6 +14,7 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
 export function LeftColumn() {
   const [collapsed, setCollapsed] = useState(false);
   const { activeView, setView } = useUIStore();
+  const { tagTree, selectedNoteId, selectNote } = useNoteStore();
 
   if (collapsed) {
     return (
@@ -60,9 +63,15 @@ export function LeftColumn() {
           ))}
         </div>
 
-        {/* Tag tree placeholder — will be filled in Task 10 */}
         <div className="mt-2 border-t border-[var(--color-border)] pt-2">
-          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">Tags loading...</p>
+          <TagTree
+            tree={tagTree}
+            onSelectNote={(id) => {
+              selectNote(id);
+              setView("notes");
+            }}
+            selectedNoteId={selectedNoteId}
+          />
         </div>
       </div>
 
