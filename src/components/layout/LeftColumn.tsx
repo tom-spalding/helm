@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useUIStore, type View } from "../../store/ui";
 import { TagTree } from "../sidebar/TagTree";
 import { useNoteStore } from "../../store/notes";
+import { NewNoteButton } from "../sidebar/NewNoteButton";
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: "notes", label: "All Notes", icon: "📝" },
@@ -71,6 +72,9 @@ export function LeftColumn() {
 
       {/* Named views */}
       <div className="flex-1 overflow-y-auto p-2">
+        <div className="mb-2">
+          <NewNoteButton />
+        </div>
         <div className="mb-2">
           {VIEWS.map((v) => (
             <button
