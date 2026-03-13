@@ -1,8 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
+
+fn validate_path(file_path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(file_path);
+    // Reject relative paths
+    if path.is_relative() {
+        return Err(format!("Path must be absolute: {}", file_path));
+    }
+    // Reject paths with .. components
+    if path.components().any(|c| c == std::path::Component::ParentDir) {
+        return Err(format!("Path traversal not allowed: {}", file_path));
+    }
+    Ok(path)
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NoteFile {
@@ -49,23 +62,28 @@ pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
 
 #[tauri::command]
 pub async fn read_note(file_path: String) -> Result<String, String> {
-    fs::read_to_string(&file_path).map_err(|e| e.to_string())
+    let path = validate_path(&file_path)?;
+    fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn write_note(file_path: String, content: String) -> Result<(), String> {
-    if let Some(parent) = Path::new(&file_path).parent() {
+    let path = validate_path(&file_path)?;
+    if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    fs::write(&file_path, content).map_err(|e| e.to_string())
+    fs::write(&path, content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn delete_note(file_path: String) -> Result<(), String> {
-    fs::remove_file(&file_path).map_err(|e| e.to_string())
+    let path = validate_path(&file_path)?;
+    fs::remove_file(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn rename_note(old_path: String, new_path: String) -> Result<(), String> {
-    fs::rename(&old_path, &new_path).map_err(|e| e.to_string())
+    let old = validate_path(&old_path)?;
+    let new = validate_path(&new_path)?;
+    fs::rename(&old, &new).map_err(|e| e.to_string())
 }
