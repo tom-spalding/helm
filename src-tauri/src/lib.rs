@@ -14,6 +14,7 @@ pub fn run() {
             write_note,
             delete_note,
             rename_note,
+            watch_vault,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -27,4 +27,7 @@ export const tauriCommands = {
 
   renameNote: (oldPath: string, newPath: string): Promise<void> =>
     invoke("rename_note", { oldPath, newPath }),
+
+  watchVault: (vaultPath: string): Promise<void> =>
+    invoke("watch_vault", { vaultPath }),
 };

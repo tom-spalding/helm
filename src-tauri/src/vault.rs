@@ -1,7 +1,9 @@
+use notify::{recommended_watcher, Event, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::AppHandle;
+use std::thread;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
 
 fn validate_path(file_path: &str) -> Result<PathBuf, String> {
@@ -86,4 +88,42 @@ pub async fn rename_note(old_path: String, new_path: String) -> Result<(), Strin
     let old = validate_path(&old_path)?;
     let new = validate_path(&new_path)?;
     fs::rename(&old, &new).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn watch_vault(app: AppHandle, vault_path: String) -> Result<(), String> {
+    let app_clone = app.clone();
+
+    thread::spawn(move || {
+        let (tx, rx) = std::sync::mpsc::channel::<Result<Event, notify::Error>>();
+
+        let mut watcher = match recommended_watcher(tx) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("Failed to create watcher: {}", e);
+                return;
+            }
+        };
+
+        if let Err(e) = watcher.watch(std::path::Path::new(&vault_path), RecursiveMode::NonRecursive) {
+            eprintln!("Failed to watch vault: {}", e);
+            return;
+        }
+
+        for result in rx {
+            if let Ok(event) = result {
+                let paths: Vec<String> = event
+                    .paths
+                    .iter()
+                    .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("md"))
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect();
+                if !paths.is_empty() {
+                    let _ = app_clone.emit("vault-changed", paths);
+                }
+            }
+        }
+    });
+
+    Ok(())
 }
