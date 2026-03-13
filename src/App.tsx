@@ -1,5 +1,6 @@
 import { useVault } from "./hooks/useVault";
 import { useNoteStore } from "./store/notes";
+import { AppShell } from "./components/layout/AppShell";
 
 export default function App() {
   const { loading, error, promptVaultSelection } = useVault();
@@ -42,11 +43,5 @@ export default function App() {
     );
   }
 
-  return (
-    <div className="flex h-screen bg-[var(--color-bg)]">
-      <p className="p-4 text-green-400 text-sm">
-        Vault loaded: {vaultPath} — {/* note count will be wired in Task 8 */}
-      </p>
-    </div>
-  );
+  return <AppShell />;
 }
