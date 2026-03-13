@@ -1,7 +1,17 @@
 import { useState } from "react";
+import { useUIStore, type View } from "../../store/ui";
+
+const VIEWS: { id: View; label: string; icon: string }[] = [
+  { id: "notes", label: "All Notes", icon: "📝" },
+  { id: "dashboard", label: "Dashboard", icon: "📊" },
+  { id: "eisenhower", label: "Eisenhower", icon: "🎯" },
+  { id: "kanban", label: "Kanban", icon: "📋" },
+  { id: "graph", label: "Graph", icon: "🕸️" },
+];
 
 export function LeftColumn() {
   const [collapsed, setCollapsed] = useState(false);
+  const { activeView, setView } = useUIStore();
 
   if (collapsed) {
     return (
@@ -22,7 +32,7 @@ export function LeftColumn() {
       className="flex flex-col border-r border-[var(--color-border)]"
       style={{ width: "var(--sidebar-width)", minWidth: "var(--sidebar-width)" }}
     >
-      {/* Search — will be wired in Task 16 */}
+      {/* Search */}
       <div className="border-b border-[var(--color-border)] p-3">
         <input
           placeholder="Search..."
@@ -31,11 +41,29 @@ export function LeftColumn() {
         />
       </div>
 
-      {/* Named views + tag tree — will be filled in Tasks 9 and 10 */}
+      {/* Named views */}
       <div className="flex-1 overflow-y-auto p-2">
-        <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
-          Views and tags will appear here
-        </p>
+        <div className="mb-2">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setView(v.id)}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                activeView === v.id
+                  ? "bg-[var(--color-surface)] text-[var(--color-text)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              }`}
+            >
+              <span>{v.icon}</span>
+              <span>{v.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Tag tree placeholder — will be filled in Task 10 */}
+        <div className="mt-2 border-t border-[var(--color-border)] pt-2">
+          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">Tags loading...</p>
+        </div>
       </div>
 
       {/* Collapse toggle */}
