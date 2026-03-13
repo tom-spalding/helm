@@ -6,6 +6,7 @@ import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import type { NoteFrontmatter } from "../../types/note";
 import { EisenhowerView } from "../../views/EisenhowerView";
+import { KanbanView } from "../../views/KanbanView";
 
 export function MainPanel() {
   const { activeView } = useUIStore();
@@ -62,6 +63,8 @@ export function MainPanel() {
   }
 
   if (activeView === "eisenhower") return <EisenhowerView />;
+
+  if (activeView === "kanban") return <KanbanView />;
 
   return (
     <div className="flex flex-1 h-full items-center justify-center text-[var(--color-text-muted)]">
