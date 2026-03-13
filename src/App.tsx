@@ -1,52 +1,52 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { useVault } from "./hooks/useVault";
+import { useNoteStore } from "./store/notes";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export default function App() {
+  const { loading, error, promptVaultSelection } = useVault();
+  const vaultPath = useNoteStore((s) => s.vaultPath);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[var(--color-bg)]">
+        <p className="text-[var(--color-text-muted)]">Loading vault...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--color-bg)]">
+        <p className="text-red-400">Error: {error}</p>
+        <button
+          onClick={promptVaultSelection}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-500"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!vaultPath) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--color-bg)]">
+        <h1 className="text-2xl font-semibold text-[var(--color-text)]">Welcome to Helm</h1>
+        <p className="text-[var(--color-text-muted)]">Choose a folder to store your notes.</p>
+        <button
+          onClick={promptVaultSelection}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-500"
+        >
+          Select Vault Folder
+        </button>
+      </div>
+    );
   }
 
   return (
-    <main className="flex h-screen items-center justify-center bg-[#1c1c1e] text-white">
-      <div>
-        <h1>Welcome to Tauri + React</h1>
-
-        <div className="row">
-          <a href="https://vite.dev" target="_blank">
-            <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-          </a>
-          <a href="https://tauri.app" target="_blank">
-            <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-          </a>
-          <a href="https://react.dev" target="_blank">
-            <img src={reactLogo} className="logo react" alt="React logo" />
-          </a>
-        </div>
-        <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-        <form
-          className="row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            greet();
-          }}
-        >
-          <input
-            id="greet-input"
-            onChange={(e) => setName(e.currentTarget.value)}
-            placeholder="Enter a name..."
-          />
-          <button type="submit">Greet</button>
-        </form>
-        <p>{greetMsg}</p>
-      </div>
-    </main>
+    <div className="flex h-screen bg-[var(--color-bg)]">
+      <p className="p-4 text-green-400 text-sm">
+        Vault loaded: {vaultPath} — {/* note count will be wired in Task 8 */}
+      </p>
+    </div>
   );
 }
-
-export default App;
