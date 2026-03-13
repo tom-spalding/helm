@@ -26,6 +26,7 @@
     "minisearch": "^7.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-force-graph-2d": "^1.29.1",
     "recharts": "^3.8.0",
     "ulid": "^3.0.2",
     "zustand": "^5.0.11"

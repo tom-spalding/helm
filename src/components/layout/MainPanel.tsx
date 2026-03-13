@@ -2,12 +2,14 @@ import { useUIStore } from "../../store/ui";
 import { useNoteStore } from "../../store/notes";
 import { NoteEditor } from "../editor/NoteEditor";
 import { PropertyPanel } from "../editor/PropertyPanel";
+import { BacklinksPanel } from "../editor/BacklinksPanel";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import type { NoteFrontmatter } from "../../types/note";
 import { EisenhowerView } from "../../views/EisenhowerView";
 import { KanbanView } from "../../views/KanbanView";
 import { DashboardView } from "../../views/DashboardView";
+import { GraphView } from "../../views/GraphView";
 
 export function MainPanel() {
   const { activeView } = useUIStore();
@@ -47,13 +49,14 @@ export function MainPanel() {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         {selectedNote ? (
-          <>
+          <div className="flex flex-1 flex-col overflow-y-auto">
             <PropertyPanel
               frontmatter={selectedNote.frontmatter}
               onChange={handleFrontmatterChange}
             />
             <NoteEditor note={selectedNote} onSave={handleSave} />
-          </>
+            <BacklinksPanel note={selectedNote} />
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
             Select a note to start editing
@@ -62,6 +65,8 @@ export function MainPanel() {
       </div>
     );
   }
+
+  if (activeView === "graph") return <GraphView />;
 
   if (activeView === "eisenhower") return <EisenhowerView />;
 
