@@ -14,7 +14,7 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
 export function LeftColumn() {
   const [collapsed, setCollapsed] = useState(false);
   const { activeView, setView } = useUIStore();
-  const { tagTree, selectedNoteId, selectNote } = useNoteStore();
+  const { tagTree, selectedNoteId, selectNote, searchQuery, searchResults, search } = useNoteStore();
 
   if (collapsed) {
     return (
@@ -36,12 +36,37 @@ export function LeftColumn() {
       style={{ width: "var(--sidebar-width)", minWidth: "var(--sidebar-width)" }}
     >
       {/* Search */}
-      <div className="border-b border-[var(--color-border)] p-3">
+      <div className="relative border-b border-[var(--color-border)] p-3">
         <input
           placeholder="Search..."
+          value={searchQuery}
+          onChange={(e) => search(e.target.value)}
           className="w-full rounded-md bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
-          readOnly
         />
+        {searchQuery && (
+          <div className="absolute left-3 right-3 top-full z-50 mt-1 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] shadow-xl">
+            {searchResults.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-[var(--color-text-muted)]">No results</p>
+            ) : (
+              searchResults.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => {
+                    selectNote(n.id);
+                    setView("notes");
+                    search("");
+                  }}
+                  className="flex w-full flex-col px-3 py-2 text-left hover:bg-[var(--color-surface)]"
+                >
+                  <span className="text-sm text-[var(--color-text)]">{n.frontmatter.title}</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {n.frontmatter.tags.join(", ")}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Named views */}

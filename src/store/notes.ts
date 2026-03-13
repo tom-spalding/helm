@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Note } from "../types/note";
+import { buildIndex, searchNotes, type NoteIndex } from "../lib/search";
 
 export interface TagNode {
   notes: Note[];
@@ -22,6 +23,9 @@ interface NoteStore {
   selectedNoteId: string | null;
   vaultPath: string | null;
   tagTree: Record<string, TagNode>;
+  searchIndex: NoteIndex | null;
+  searchQuery: string;
+  searchResults: Note[];
 
   setNotes: (notes: Note[]) => void;
   setVaultPath: (path: string) => void;
@@ -29,15 +33,22 @@ interface NoteStore {
   updateNote: (note: Note) => void;
   addNote: (note: Note) => void;
   removeNote: (id: string) => void;
+  search: (query: string) => void;
 }
 
-export const useNoteStore = create<NoteStore>((set) => ({
+export const useNoteStore = create<NoteStore>((set, get) => ({
   notes: [],
   selectedNoteId: null,
   vaultPath: null,
   tagTree: {},
+  searchIndex: null,
+  searchQuery: "",
+  searchResults: [],
 
-  setNotes: (notes) => set({ notes, tagTree: buildTagTree(notes) }),
+  setNotes: (notes) => {
+    const searchIndex = buildIndex(notes);
+    set({ notes, tagTree: buildTagTree(notes), searchIndex });
+  },
   setVaultPath: (path) => set({ vaultPath: path }),
   selectNote: (id) => set({ selectedNoteId: id }),
   updateNote: (updated) =>
@@ -55,4 +66,13 @@ export const useNoteStore = create<NoteStore>((set) => ({
       const notes = state.notes.filter((n) => n.id !== id);
       return { notes, tagTree: buildTagTree(notes) };
     }),
+  search: (query) => {
+    const { notes, searchIndex } = get();
+    if (!searchIndex || !query.trim()) {
+      set({ searchQuery: query, searchResults: [] });
+      return;
+    }
+    const results = searchNotes(searchIndex, notes, query);
+    set({ searchQuery: query, searchResults: results });
+  },
 }));
