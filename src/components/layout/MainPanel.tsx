@@ -5,6 +5,7 @@ import { PropertyPanel } from "../editor/PropertyPanel";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import type { NoteFrontmatter } from "../../types/note";
+import { EisenhowerView } from "../../views/EisenhowerView";
 
 export function MainPanel() {
   const { activeView } = useUIStore();
@@ -59,6 +60,8 @@ export function MainPanel() {
       </div>
     );
   }
+
+  if (activeView === "eisenhower") return <EisenhowerView />;
 
   return (
     <div className="flex flex-1 h-full items-center justify-center text-[var(--color-text-muted)]">
