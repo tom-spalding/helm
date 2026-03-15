@@ -1,33 +1,102 @@
+import { useState } from "react";
 import type { NoteFrontmatter, NoteState } from "../../types/note";
 import { NOTE_STATES } from "../../lib/constants";
+import { useNoteStore } from "../../store/notes";
 
 interface PropertyPanelProps {
   frontmatter: NoteFrontmatter;
+  filePath?: string;
   onChange: (updates: Partial<NoteFrontmatter>) => void;
+  onTitleTab?: () => void;
+  onDelete?: () => void;
 }
 
-function Tag({ label }: { label: string }) {
+// Fields handled explicitly — excluded from the "extra fields" section
+const KNOWN_FIELDS = new Set([
+  "id", "title", "created", "updated", "tags",
+  "urgent", "important", "state", "blocked", "deadline", "team", "links",
+  "locked", "pinned",
+]);
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span className="rounded-full bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-text-muted)]">
-      #{label}
-    </span>
+    <div className="flex items-center gap-3 py-1.5 border-b border-[var(--color-border)]/40 last:border-0">
+      <span className="w-24 shrink-0 text-xs text-[var(--color-text-muted)]">{label}</span>
+      <div className="flex-1 text-sm text-[var(--color-text)]">{children}</div>
+    </div>
   );
 }
 
-export function PropertyPanel({ frontmatter, onChange }: PropertyPanelProps) {
+export function PropertyPanel({ frontmatter, filePath, onChange, onTitleTab, onDelete }: PropertyPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function copyPath() {
+    if (!filePath) return;
+    navigator.clipboard.writeText(filePath).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  const { notes } = useNoteStore();
+
+  // Extra unknown fields beyond the known set
+  const extraFields = Object.entries(frontmatter).filter(
+    ([k]) => !KNOWN_FIELDS.has(k)
+  );
+
   return (
     <div className="border-b border-[var(--color-border)] px-12 py-4 space-y-3">
-      {/* Title */}
-      <input
-        className="w-full bg-transparent text-3xl font-bold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
-        value={frontmatter.title}
-        onChange={(e) => onChange({ title: e.target.value })}
-        placeholder="Untitled"
-      />
+      {/* Title row */}
+      <div className="flex items-center gap-3">
+        <input
+          className="flex-1 bg-transparent text-3xl font-bold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+          value={frontmatter.title}
+          onChange={(e) => onChange({ title: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === "Tab") {
+              e.preventDefault();
+              onTitleTab?.();
+            }
+          }}
+          placeholder="Untitled"
+        />
+        {filePath && (
+          <button
+            onClick={copyPath}
+            title="Copy file path"
+            className="shrink-0 rounded p-1.5 text-[var(--color-text-muted)] opacity-60 hover:bg-[var(--color-surface)] hover:opacity-100 transition-all"
+          >
+            {copied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            title="Delete note"
+            className="shrink-0 rounded p-1.5 text-[var(--color-text-muted)] opacity-60 hover:bg-red-500/10 hover:text-red-400 hover:opacity-100 transition-all"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+          </button>
+        )}
+      </div>
 
-      {/* Metadata row */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        {/* State */}
+      {/* Compact metadata row */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-[var(--color-text-muted)]">State</span>
           <select
@@ -36,59 +105,139 @@ export function PropertyPanel({ frontmatter, onChange }: PropertyPanelProps) {
             onChange={(e) => onChange({ state: e.target.value as NoteState })}
           >
             {NOTE_STATES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </div>
 
-        {/* Urgent */}
         <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={frontmatter.urgent}
-            onChange={(e) => onChange({ urgent: e.target.checked })}
-            className="rounded"
-          />
+          <input type="checkbox" checked={frontmatter.urgent}
+            onChange={(e) => onChange({ urgent: e.target.checked })} className="rounded" />
           Urgent
         </label>
 
-        {/* Important */}
         <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={frontmatter.important}
-            onChange={(e) => onChange({ important: e.target.checked })}
-            className="rounded"
-          />
+          <input type="checkbox" checked={frontmatter.important}
+            onChange={(e) => onChange({ important: e.target.checked })} className="rounded" />
           Important
         </label>
 
-        {/* Blocked */}
         <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={frontmatter.blocked}
-            onChange={(e) => onChange({ blocked: e.target.checked })}
-            className="rounded"
-          />
+          <input type="checkbox" checked={frontmatter.blocked}
+            onChange={(e) => onChange({ blocked: e.target.checked })} className="rounded" />
           Blocked
         </label>
 
-        {/* Deadline */}
-        {frontmatter.deadline && (
-          <span className="text-[var(--color-text-muted)]">
-            Due: {frontmatter.deadline}
-          </span>
-        )}
+        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+          <input type="checkbox" checked={frontmatter.pinned ?? false}
+            onChange={(e) => onChange({ pinned: e.target.checked })} className="rounded" />
+          Pinned
+        </label>
+
+        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+          <input type="checkbox" checked={frontmatter.locked ?? false}
+            onChange={(e) => onChange({ locked: e.target.checked })} className="rounded" />
+          Locked
+        </label>
+
+        {/* Expand toggle */}
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] transition-colors"
+        >
+          Properties
+          <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
       </div>
 
-      {/* Tags */}
-      {frontmatter.tags.length > 0 && (
+      {/* Expanded frontmatter panel */}
+      {expanded && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/50 px-4 py-2 text-sm">
+          <Row label="ID">
+            <span className="font-mono text-xs text-[var(--color-text-muted)]">{frontmatter.id}</span>
+          </Row>
+
+          <Row label="Created">
+            <span className="text-[var(--color-text-muted)]">{frontmatter.created}</span>
+          </Row>
+
+          <Row label="Updated">
+            <span className="text-[var(--color-text-muted)]">{frontmatter.updated}</span>
+          </Row>
+
+          <Row label="Deadline">
+            <input
+              type="date"
+              value={frontmatter.deadline ?? ""}
+              onChange={(e) => onChange({ deadline: e.target.value || undefined })}
+              className="bg-transparent text-[var(--color-text)] outline-none [color-scheme:dark]"
+            />
+          </Row>
+
+          <Row label="Team">
+            <input
+              type="text"
+              value={frontmatter.team?.join(", ") ?? ""}
+              onChange={(e) =>
+                onChange({
+                  team: e.target.value
+                    ? e.target.value.split(",").map((t) => t.trim()).filter(Boolean)
+                    : undefined,
+                })
+              }
+              placeholder="CE, RL, …"
+              className="w-full bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]/50"
+            />
+          </Row>
+
+          <Row label="Tags">
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {frontmatter.tags.length > 0
+                ? frontmatter.tags.join(", ")
+                : <em>set via #tag in body</em>}
+            </span>
+          </Row>
+
+          <Row label="Links">
+            {frontmatter.links && frontmatter.links.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {frontmatter.links.map((id) => {
+                  const title = notes.find((n) => n.id === id)?.frontmatter.title ?? id;
+                  return (
+                    <span key={id} className="rounded bg-[var(--color-border)]/50 px-1.5 py-0.5 text-xs text-[var(--color-text-muted)]">
+                      {title}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <em className="text-xs text-[var(--color-text-muted)]/50">use [[Note Title]] in body</em>
+            )}
+          </Row>
+
+          {/* Extra / custom fields */}
+          {extraFields.map(([key, value]) => (
+            <Row key={key} label={key}>
+              <input
+                type="text"
+                value={String(value ?? "")}
+                onChange={(e) => onChange({ [key]: e.target.value })}
+                className="w-full bg-transparent text-[var(--color-text)] outline-none"
+              />
+            </Row>
+          ))}
+        </div>
+      )}
+
+      {/* Tags display */}
+      {frontmatter.tags.length > 0 && !expanded && (
         <div className="flex flex-wrap gap-1.5">
           {frontmatter.tags.map((tag) => (
-            <Tag key={tag} label={tag} />
+            <span key={tag} className="rounded-full bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-text-muted)]">
+              #{tag}
+            </span>
           ))}
         </div>
       )}

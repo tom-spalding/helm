@@ -1,41 +1,90 @@
+/**
+ * Notes store — manages all notes, selection, tagging, and search.
+ * Maintains a hierarchical tag tree for efficient filtering and a
+ * full-text search index for note discovery.
+ */
 import { create } from "zustand";
 import type { Note } from "../types/note";
 import { buildIndex, searchNotes, type NoteIndex } from "../lib/search";
 
+/**
+ * A node in the hierarchical tag tree structure.
+ * Supports nested tags like "work/project/alpha" via children.
+ */
 export interface TagNode {
+  /** All notes tagged with this tag */
   notes: Note[];
+  /** Child tags (for hierarchical Bear-style tags) */
   children: Record<string, TagNode>;
 }
 
+/**
+ * Recursively ensure a tag path exists in the tree, creating missing nodes.
+ * @internal
+ */
+function ensureNode(parts: string[], current: Record<string, TagNode>): TagNode {
+  const [head, ...rest] = parts;
+  if (!current[head]) current[head] = { notes: [], children: {} };
+  if (rest.length === 0) return current[head];
+  return ensureNode(rest, current[head].children);
+}
+
+/**
+ * Build the hierarchical tag tree from all notes.
+ * Each note is indexed in the tree by all its tags.
+ * @internal
+ */
 function buildTagTree(notes: Note[]): Record<string, TagNode> {
   const tree: Record<string, TagNode> = {};
   for (const note of notes) {
     for (const tag of note.frontmatter.tags ?? []) {
-      if (!tree[tag]) tree[tag] = { notes: [], children: {} };
-      tree[tag].notes.push(note);
+      const parts = tag.split("/").filter(Boolean);
+      const leaf = ensureNode(parts, tree);
+      leaf.notes.push(note);
     }
   }
   return tree;
 }
 
+/**
+ * Notes store state and actions.
+ */
 interface NoteStore {
+  /** All loaded notes from the vault */
   notes: Note[];
+  /** ID of currently selected note, or null if none selected */
   selectedNoteId: string | null;
+  /** Absolute path to the vault directory */
   vaultPath: string | null;
+  /** Hierarchical tree of tags with associated notes */
   tagTree: Record<string, TagNode>;
+  /** Full-text search index for fast lookups */
   searchIndex: NoteIndex | null;
+  /** Current search query string */
   searchQuery: string;
+  /** Notes matching the current search query */
   searchResults: Note[];
 
+  /** Replace all notes and rebuild indexes */
   setNotes: (notes: Note[]) => void;
+  /** Set the vault directory path */
   setVaultPath: (path: string) => void;
+  /** Select a note by ID (or null to deselect) */
   selectNote: (id: string | null) => void;
+  /** Update an existing note and rebuild indexes */
   updateNote: (note: Note) => void;
+  /** Add a new note and rebuild indexes */
   addNote: (note: Note) => void;
+  /** Remove a note by ID and rebuild indexes */
   removeNote: (id: string) => void;
+  /** Search for notes matching a query (rebuilds search index if needed) */
   search: (query: string) => void;
 }
 
+/**
+ * Global notes store using Zustand.
+ * Manages all note operations, selection, tagging, and search.
+ */
 export const useNoteStore = create<NoteStore>((set, get) => ({
   notes: [],
   selectedNoteId: null,

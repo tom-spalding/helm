@@ -30,4 +30,7 @@ export const tauriCommands = {
 
   watchVault: (vaultPath: string): Promise<void> =>
     invoke("watch_vault", { vaultPath }),
+
+  writeAsset: (vaultPath: string, filename: string, data: number[]): Promise<string> =>
+    invoke("write_asset", { vaultPath, filename, data }),
 };

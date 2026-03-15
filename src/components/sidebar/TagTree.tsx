@@ -1,66 +1,65 @@
 import { useState } from "react";
 import type { TagNode } from "../../store/notes";
-import type { Note } from "../../types/note";
 
 interface TagTreeProps {
   tree: Record<string, TagNode>;
-  onSelectNote: (id: string) => void;
-  selectedNoteId: string | null;
+  onSelectTag: (fullTag: string) => void;
+  activeTag: string | null;
 }
 
 interface TagNodeItemProps {
   tag: string;
+  fullPath: string;
   node: TagNode;
   depth?: number;
-  onSelectNote: (id: string) => void;
-  selectedNoteId: string | null;
+  onSelectTag: (fullTag: string) => void;
+  activeTag: string | null;
 }
 
-function TagNodeItem({
-  tag,
-  node,
-  depth = 0,
-  onSelectNote,
-  selectedNoteId,
-}: TagNodeItemProps) {
+function TagNodeItem({ tag, fullPath, node, depth = 0, onSelectTag, activeTag }: TagNodeItemProps) {
   const [expanded, setExpanded] = useState(false);
+  const hasChildren = Object.keys(node.children).length > 0;
+  const isActive = activeTag === fullPath;
+  const totalCount = node.notes.length +
+    Object.values(node.children).reduce((s, c) => s + c.notes.length, 0);
 
   return (
     <div style={{ paddingLeft: `${depth * 12}px` }}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1 rounded px-2 py-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-      >
-        <span className="text-xs opacity-60">{expanded ? "▼" : "▶"}</span>
-        <span>#{tag}</span>
-        <span className="ml-auto text-xs opacity-40">{node.notes.length}</span>
-      </button>
+      <div className="flex items-center">
+        {hasChildren ? (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="p-1 text-[var(--color-text-muted)] opacity-50 hover:opacity-100"
+          >
+            <span className="text-xs">{expanded ? "▼" : "▶"}</span>
+          </button>
+        ) : (
+          <span className="w-6 shrink-0" />
+        )}
+        <button
+          onClick={() => onSelectTag(fullPath)}
+          className={`flex flex-1 items-center gap-1 rounded px-2 py-1 text-sm transition-colors ${
+            isActive
+              ? "bg-[var(--color-surface)] text-[var(--color-text)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          }`}
+        >
+          <span>#{tag}</span>
+          <span className="ml-auto text-xs opacity-40">{totalCount}</span>
+        </button>
+      </div>
 
-      {expanded && (
+      {expanded && hasChildren && (
         <div>
-          {node.notes.map((note: Note) => (
-            <button
-              key={note.id}
-              onClick={() => onSelectNote(note.id)}
-              className={`flex w-full truncate rounded px-2 py-1 text-sm text-left ${
-                selectedNoteId === note.id
-                  ? "bg-blue-600/20 text-[var(--color-text)]"
-                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              }`}
-              style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
-            >
-              {note.frontmatter.title}
-            </button>
-          ))}
-
           {Object.entries(node.children).map(([childTag, childNode]) => (
             <TagNodeItem
               key={childTag}
               tag={childTag}
+              fullPath={`${fullPath}/${childTag}`}
               node={childNode}
               depth={depth + 1}
-              onSelectNote={onSelectNote}
-              selectedNoteId={selectedNoteId}
+              onSelectTag={onSelectTag}
+              activeTag={activeTag}
             />
           ))}
         </div>
@@ -69,7 +68,7 @@ function TagNodeItem({
   );
 }
 
-export function TagTree({ tree, onSelectNote, selectedNoteId }: TagTreeProps) {
+export function TagTree({ tree, onSelectTag, activeTag }: TagTreeProps) {
   return (
     <div>
       {Object.entries(tree)
@@ -78,9 +77,10 @@ export function TagTree({ tree, onSelectNote, selectedNoteId }: TagTreeProps) {
           <TagNodeItem
             key={tag}
             tag={tag}
+            fullPath={tag}
             node={node}
-            onSelectNote={onSelectNote}
-            selectedNoteId={selectedNoteId}
+            onSelectTag={onSelectTag}
+            activeTag={activeTag}
           />
         ))}
     </div>

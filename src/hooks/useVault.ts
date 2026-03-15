@@ -39,7 +39,8 @@ export function useVault() {
   }
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let unlistenChanged: (() => void) | undefined;
+    let unlistenDeleted: (() => void) | undefined;
 
     async function init() {
       try {
@@ -50,8 +51,8 @@ export function useVault() {
           setLoading(false);
         }
 
-        // Listen for file changes emitted by the Rust watcher
-        unlisten = await listen<string[]>("vault-changed", async (event) => {
+        // Listen for file creates/modifications
+        unlistenChanged = await listen<string[]>("vault-changed", async (event) => {
           const changedPaths = event.payload;
           const store = useNoteStore.getState();
 
@@ -59,7 +60,6 @@ export function useVault() {
             try {
               const content = await tauriCommands.readNote(filePath);
               const note = parseNote(content, filePath);
-
               const existing = store.notes.find((n) => n.filePath === filePath);
               if (existing) {
                 store.updateNote(note);
@@ -67,11 +67,19 @@ export function useVault() {
                 store.addNote(note);
               }
             } catch {
-              // File was deleted or unreadable
-              const existing = store.notes.find((n) => n.filePath === filePath);
-              if (existing) {
-                store.removeNote(existing.id);
-              }
+              // Transient read error (race with write) — ignore, note stays in store
+            }
+          }
+        });
+
+        // Listen for confirmed file deletions (separate event from Rust)
+        unlistenDeleted = await listen<string[]>("vault-note-deleted", (event) => {
+          const deletedPaths = event.payload;
+          const store = useNoteStore.getState();
+          for (const filePath of deletedPaths) {
+            const existing = store.notes.find((n) => n.filePath === filePath);
+            if (existing) {
+              store.removeNote(existing.id);
             }
           }
         });
@@ -84,9 +92,8 @@ export function useVault() {
     init();
 
     return () => {
-      if (unlisten) {
-        unlisten();
-      }
+      unlistenChanged?.();
+      unlistenDeleted?.();
     };
   }, []);
 

@@ -9,6 +9,15 @@
   --color-text: #f2f2f7;
   --color-text-muted: #8e8e93;
   --color-accent: #0a84ff;
+
+  /* Editor typography — overridden at runtime by applySettings() */
+  --editor-font-size: 16px;
+  --editor-line-height: 1.7;
+  --editor-max-width: 72ch;
+}
+
+input[type="range"] {
+  accent-color: var(--color-accent);
 }
 
 body {
@@ -21,3 +30,193 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* ── Prose — all text follows theme colors ───────────────────── */
+.prose,
+.prose p,
+.prose li,
+.prose ol,
+.prose ul,
+.prose blockquote {
+  color: var(--color-text);
+}
+.prose :where(h1, h2, h3, h4, h5, h6),
+.prose :where(strong),
+.prose :where(b) {
+  color: var(--color-text) !important;
+}
+.prose :where(em) {
+  color: var(--color-text-muted);
+}
+.prose :where(a) {
+  color: var(--color-accent);
+}
+.prose :where(hr) {
+  border-color: var(--color-border);
+}
+.prose :where(blockquote) {
+  border-left-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* ── TipTap inline code ─────────────────────────────────────── */
+.prose :where(code):not(pre code) {
+  background: #2c2c2e;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.88em;
+  font-family: "SF Mono", ui-monospace, monospace;
+  color: #e5c07b;
+}
+.prose :where(code):not(pre code)::before,
+.prose :where(code):not(pre code)::after {
+  content: none;
+}
+
+/* ── TipTap code block (lowlight) ───────────────────────────── */
+.prose pre {
+  background: #1a1a1c;
+  border: 1px solid #3a3a3c;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.prose pre code {
+  background: none;
+  padding: 0;
+  color: #abb2bf;
+  font-size: inherit;
+}
+
+/* ── Highlight mark (==text==) ──────────────────────────────── */
+.prose mark {
+  background: #0a84ff33;
+  color: #6ac5fe;
+  border-radius: 3px;
+  padding: 0.05em 0.2em;
+}
+
+/* ── List item spacing — match paragraph rhythm ─────────────── */
+.prose :where(ul, ol) {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+.prose :where(li) {
+  margin-top: 0.1em;
+  margin-bottom: 0.1em;
+}
+.prose :where(li > p) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Task list checkboxes ───────────────────────────────────── */
+ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0;
+}
+ul[data-type="taskList"] li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.3rem 0;
+  padding: 0;
+}
+/* kill prose p margins inside task items so text stays inline */
+ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+ul[data-type="taskList"] li > label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid #8e8e93;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
+  background: #0a84ff;
+  border-color: #0a84ff;
+}
+ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
+  content: "";
+  display: block;
+  width: 0.35rem;
+  height: 0.6rem;
+  border: 2px solid white;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: #8e8e93;
+  text-decoration: line-through;
+}
+/* nested task lists */
+ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-top: 0.25rem;
+  padding-left: 1.25rem;
+}
+
+/* ── Wiki links [[Note Title]] ──────────────────────────────── */
+.wikilink-ref {
+  color: var(--color-accent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 1px;
+  transition: background 0.1s;
+}
+.wikilink-ref:hover {
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+/* ── Images ─────────────────────────────────────────────────── */
+.prose img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+/* ── Lowlight / highlight.js token colours (One Dark) ──────── */
+.hljs-comment,
+.hljs-quote        { color: #5c6370; font-style: italic; }
+.hljs-keyword,
+.hljs-selector-tag { color: #c678dd; }
+.hljs-number,
+.hljs-literal      { color: #d19a66; }
+.hljs-string,
+.hljs-doctag       { color: #98c379; }
+.hljs-title,
+.hljs-section,
+.hljs-type         { color: #61afef; }
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attr         { color: #e06c75; }
+.hljs-built_in,
+.hljs-builtin-name { color: #56b6c2; }
+.hljs-tag          { color: #e06c75; }
+.hljs-name         { color: #e06c75; }
+.hljs-attribute    { color: #d19a66; }
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link         { color: #98c379; }
+.hljs-meta         { color: #5c6370; }

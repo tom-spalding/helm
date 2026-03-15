@@ -78,6 +78,23 @@ pub async fn write_note(file_path: String, content: String) -> Result<(), String
 }
 
 #[tauri::command]
+pub async fn write_asset(vault_path: String, filename: String, data: Vec<u8>) -> Result<String, String> {
+    let vault = PathBuf::from(&vault_path);
+    let assets_dir = vault.join("assets");
+    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+
+    // Sanitize filename: allow only alphanumeric, dash, underscore, dot
+    let safe_name: String = filename
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .collect();
+
+    let dest = assets_dir.join(&safe_name);
+    fs::write(&dest, data).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 pub async fn delete_note(file_path: String) -> Result<(), String> {
     let path = validate_path(&file_path)?;
     fs::remove_file(&path).map_err(|e| e.to_string())
@@ -112,14 +129,19 @@ pub async fn watch_vault(app: AppHandle, vault_path: String) -> Result<(), Strin
 
         for result in rx {
             if let Ok(event) = result {
-                let paths: Vec<String> = event
+                let md_paths: Vec<String> = event
                     .paths
                     .iter()
                     .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("md"))
                     .map(|p| p.to_string_lossy().to_string())
                     .collect();
-                if !paths.is_empty() {
-                    let _ = app_clone.emit("vault-changed", paths);
+                if md_paths.is_empty() {
+                    continue;
+                }
+                if matches!(event.kind, notify::EventKind::Remove(_)) {
+                    let _ = app_clone.emit("vault-note-deleted", md_paths);
+                } else {
+                    let _ = app_clone.emit("vault-changed", md_paths);
                 }
             }
         }

@@ -9,6 +9,27 @@
 
   <body>
     <div id="root"></div>
+    <!-- Polyfill Node.js Buffer for gray-matter (not available in WebKit/WKWebView) -->
+    <script>
+      if (typeof Buffer === 'undefined') {
+        globalThis.Buffer = {
+          isBuffer: function () { return false; },
+          from: function (data) {
+            var bytes = new TextEncoder().encode(String(data));
+            bytes.toString = function (enc) { return new TextDecoder(enc || 'utf-8').decode(this); };
+            return bytes;
+          },
+          concat: function (list) {
+            var total = list.reduce(function (acc, b) { return acc + b.length; }, 0);
+            var result = new Uint8Array(total);
+            var offset = 0;
+            list.forEach(function (b) { result.set(b, offset); offset += b.length; });
+            result.toString = function (enc) { return new TextDecoder(enc || 'utf-8').decode(this); };
+            return result;
+          }
+        };
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
