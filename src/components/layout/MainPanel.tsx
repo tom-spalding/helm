@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { useUIStore } from "../../store/ui";
 import { useNoteStore } from "../../store/notes";
 import { NoteEditor, type NoteEditorHandle } from "../editor/NoteEditor";
@@ -91,6 +92,8 @@ export function MainPanel() {
 
   async function handleDelete() {
     if (!selectedNote) return;
+    const confirmed = await confirm(`Delete "${selectedNote.frontmatter.title || "Untitled"}"? This cannot be undone.`, { title: "Delete Note", kind: "warning" });
+    if (!confirmed) return;
     selectNote(null);
     removeNote(selectedNote.id);
     try {

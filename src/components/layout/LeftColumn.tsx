@@ -77,6 +77,9 @@ export function LeftColumn() {
 
   async function handleDeleteNote(note: Note, e: React.MouseEvent) {
     e.stopPropagation();
+    const { confirm } = await import("@tauri-apps/plugin-dialog");
+    const confirmed = await confirm(`Delete "${note.frontmatter.title || "Untitled"}"? This cannot be undone.`, { title: "Delete Note", kind: "warning" });
+    if (!confirmed) return;
     if (note.id === selectedNoteId) selectNote(null);
     removeNote(note.id);
     try {

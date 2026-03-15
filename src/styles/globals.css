@@ -14,6 +14,9 @@
   --editor-font-size: 16px;
   --editor-line-height: 1.7;
   --editor-max-width: 72ch;
+
+  /* Single spacing unit used for all block-level bottom spacing */
+  --spacing-block: 0.75em;
 }
 
 input[type="range"] {
@@ -45,6 +48,11 @@ body {
 .prose :where(b) {
   color: var(--color-text) !important;
 }
+.prose :where(h1, h2, h3, h4, h5, h6) {
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: var(--spacing-block) !important;
+}
 .prose :where(em) {
   color: var(--color-text-muted);
 }
@@ -53,6 +61,8 @@ body {
 }
 .prose :where(hr) {
   border-color: var(--color-border);
+  margin-top: 1em !important;
+  margin-bottom: 1em !important;
 }
 .prose :where(blockquote) {
   border-left-color: var(--color-border);
@@ -100,33 +110,40 @@ body {
 }
 
 /* ── List item spacing — match paragraph rhythm ─────────────── */
+.prose :where(p) {
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: var(--spacing-block) !important;
+}
 .prose :where(ul, ol) {
-  margin-top: 0.25em;
-  margin-bottom: 0.25em;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: var(--spacing-block) !important;
 }
 .prose :where(li) {
-  margin-top: 0.1em;
-  margin-bottom: 0.1em;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 .prose :where(li > p) {
-  margin-top: 0;
-  margin-bottom: 0;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* ── Task list checkboxes ───────────────────────────────────── */
 ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0;
-  margin: 0.5rem 0;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 ul[data-type="taskList"] li {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin: 0.3rem 0;
-  padding: 0;
+  padding: 0.3rem 0;
 }
-/* kill prose p margins inside task items so text stays inline */
+/* reset browser default p margins inside task items */
 ul[data-type="taskList"] li > div > p {
   margin: 0;
 }
@@ -172,7 +189,7 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 }
 /* nested task lists */
 ul[data-type="taskList"] ul[data-type="taskList"] {
-  margin-top: 0.25rem;
+  padding-top: 0.25rem;
   padding-left: 1.25rem;
 }
 
@@ -193,7 +210,7 @@ ul[data-type="taskList"] ul[data-type="taskList"] {
 .prose img {
   max-width: 100%;
   border-radius: 8px;
-  margin: 1rem 0;
+  padding: 0.5rem 0; /* top/bottom breathing room */
 }
 
 /* ── Lowlight / highlight.js token colours (One Dark) ──────── */
