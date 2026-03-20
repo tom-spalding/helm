@@ -193,11 +193,19 @@ export function PropertyPanel({ frontmatter, filePath, onChange, onTitleTab, onD
           </Row>
 
           <Row label="Tags">
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {frontmatter.tags.length > 0
-                ? frontmatter.tags.join(", ")
-                : <em>set via #tag in body</em>}
-            </span>
+            <input
+              type="text"
+              value={frontmatter.tags.join(", ")}
+              onChange={(e) =>
+                onChange({
+                  tags: e.target.value
+                    ? e.target.value.split(",").map((t) => t.trim().replace(/^#/, "")).filter(Boolean)
+                    : [],
+                })
+              }
+              placeholder="work, work/project"
+              className="w-full bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]/50 text-sm"
+            />
           </Row>
 
           <Row label="Links">

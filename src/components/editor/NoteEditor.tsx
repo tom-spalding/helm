@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, Extension, InputRule } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Highlight from "@tiptap/extension-highlight";
@@ -8,6 +8,125 @@ import TaskItem from "@tiptap/extension-task-item";
 import Image from "@tiptap/extension-image";
 import { common, createLowlight } from "lowlight";
 import { Markdown } from "tiptap-markdown";
+import taskListPlugin from "markdown-it-task-lists";
+
+// tiptap-markdown calls parse.setup(md) on every parse() call (initial load, paste, setContent).
+// We use this to register markdown-it-task-lists once on the md instance.
+// setup runs inside parser.parse() so the md instance already exists.
+const TaskListMarkdown = TaskList.extend({
+  addInputRules() {
+    return [
+      // When "[ ] " or "[x] " is typed at the start of a bulletList item, convert it
+      // to a taskList item. The "- " prefix already created a bulletList via StarterKit's
+      // input rule, so we match only the checkbox portion here.
+      new InputRule({
+        find: /^\[([xX ]?)\]\s$/,
+        handler: ({ state, match }) => {
+          const checked = match[1]?.toLowerCase() === "x";
+          const { $from } = state.selection;
+          const taskListType = state.schema.nodes.taskList;
+          const taskItemType = state.schema.nodes.taskItem;
+          const listItemType = state.schema.nodes.listItem;
+          if (!taskListType || !taskItemType || !listItemType) return;
+
+          // Only fire when inside a bulletList listItem
+          let listItemDepth = -1;
+          for (let d = $from.depth; d >= 0; d--) {
+            if ($from.node(d).type === listItemType) { listItemDepth = d; break; }
+          }
+          if (listItemDepth < 0) return;
+
+          const { tr } = state;
+          // Replace the entire bulletList in one operation to avoid intermediate invalid state
+          const bulletListStart = $from.before(listItemDepth - 1);
+          const bulletListEnd = $from.after(listItemDepth - 1);
+          const paragraph = state.schema.nodes.paragraph?.create();
+          const taskItem = taskItemType.create({ checked }, paragraph ?? undefined);
+          const taskList = taskListType.create(null, taskItem);
+          tr.replaceWith(bulletListStart, bulletListEnd, taskList);
+        },
+      }),
+    ];
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        serialize(state: any, node: any) {
+          state.renderList(node, "  ", () => "- ");
+        },
+        parse: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setup(md: any) {
+            if (!md.__taskListsAdded) {
+              // Normalize escaped task list brackets \[ \] → [ ] before task list plugin runs.
+              // This fixes content that was previously serialized without task list support
+              // (tiptap-markdown escapes [ and ] in plain text, producing \[ \]).
+              md.core.ruler.before("block", "unescape-task-list", (state: any) => {
+                state.src = state.src.replace(/^([-*+])\s+\\\[([xX ]?)\\\]/gm, "$1 [$2]");
+              });
+              md.use(taskListPlugin);
+              md.__taskListsAdded = true;
+            }
+          },
+          // updateDOM converts markdown-it-task-lists output classes to tiptap data-type attrs
+          updateDOM(element: Element) {
+            [...element.querySelectorAll(".contains-task-list")].forEach((list) => {
+              list.setAttribute("data-type", "taskList");
+            });
+          },
+        },
+      },
+    };
+  },
+});
+
+const TaskItemMarkdown = TaskItem.extend({
+  addStorage() {
+    return {
+      markdown: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        serialize(state: any, node: any) {
+          state.write(node.attrs.checked ? "[x] " : "[ ] ");
+          state.renderContent(node);
+        },
+        parse: {
+          updateDOM(element: Element) {
+            [...element.querySelectorAll(".task-list-item")].forEach((item) => {
+              const input = item.querySelector("input");
+              item.setAttribute("data-type", "taskItem");
+              if (input) {
+                item.setAttribute("data-checked", String((input as HTMLInputElement).checked));
+                input.remove();
+              }
+            });
+          },
+        },
+      },
+    };
+  },
+});
+
+// Clear all marks when pressing Enter outside of lists/code blocks
+// so new lines never inherit bold, italic, etc.
+const ClearMarksOnEnter = Extension.create({
+  name: "clearMarksOnEnter",
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        if (
+          editor.isActive("listItem") ||
+          editor.isActive("taskItem") ||
+          editor.isActive("codeBlock")
+        ) {
+          return false;
+        }
+        return editor.chain().splitBlock().unsetAllMarks().run();
+      },
+    };
+  },
+});
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { WikiLinkExtension } from "./WikiLink";
 import {
@@ -62,8 +181,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         Placeholder.configure({ placeholder: "Start writing…" }),
         Highlight.configure({ multicolor: false }),
         CodeBlockLowlight.configure({ lowlight }),
-        TaskList,
-        TaskItem.configure({ nested: true }),
+        TaskListMarkdown,
+        TaskItemMarkdown.configure({ nested: true }),
+        ClearMarksOnEnter,
         Image.configure({ inline: false, allowBase64: false }),
         WikiLinkExtension.configure({
           suggestion: {

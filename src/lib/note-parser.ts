@@ -91,7 +91,7 @@ export function extractWikiLinks(content: string): string[] {
  */
 export function extractInlineTags(content: string): string[] {
   const seen = new Set<string>();
-  const matches = content.matchAll(/(?:^|\s)#([a-zA-Z][a-zA-Z0-9/_-]*)/g);
+  const matches = content.matchAll(/(?:^|[^a-zA-Z0-9])#([a-zA-Z][a-zA-Z0-9/_-]*)/g);
   for (const match of matches) {
     seen.add(match[1]);
   }

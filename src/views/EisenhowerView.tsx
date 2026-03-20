@@ -148,11 +148,15 @@ export function EisenhowerView() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
+  const activeNotes = notes.filter(
+    (n) => n.frontmatter.state === "Prepare" || n.frontmatter.state === "Doing"
+  );
+
   const quadrantNotes: Record<EisenhowerQuadrant, Note[]> = {
-    do: notes.filter((n) => getQuadrant(n) === "do"),
-    schedule: notes.filter((n) => getQuadrant(n) === "schedule"),
-    delegate: notes.filter((n) => getQuadrant(n) === "delegate"),
-    eliminate: notes.filter((n) => getQuadrant(n) === "eliminate"),
+    do: activeNotes.filter((n) => getQuadrant(n) === "do"),
+    schedule: activeNotes.filter((n) => getQuadrant(n) === "schedule"),
+    delegate: activeNotes.filter((n) => getQuadrant(n) === "delegate"),
+    eliminate: activeNotes.filter((n) => getQuadrant(n) === "eliminate"),
   };
 
   async function handleDragEnd(event: DragEndEvent) {

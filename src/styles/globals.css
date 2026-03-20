@@ -125,6 +125,7 @@ body {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
+.prose :where(li > div > p),
 .prose :where(li > p) {
   margin: 0 !important;
   padding: 0 !important;
@@ -133,15 +134,15 @@ body {
 /* ── Task list checkboxes ───────────────────────────────────── */
 ul[data-type="taskList"] {
   list-style: none;
-  padding-left: 0;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 ul[data-type="taskList"] li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.6rem;
-  padding: 0.3rem 0;
+  padding: 0.1rem 0 !important;
+  margin: 0 !important;
 }
 /* reset browser default p margins inside task items */
 ul[data-type="taskList"] li > div > p {
@@ -151,6 +152,7 @@ ul[data-type="taskList"] li > label {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  padding-top: 0.35em;
 }
 ul[data-type="taskList"] li > label input[type="checkbox"] {
   appearance: none;
