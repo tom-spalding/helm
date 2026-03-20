@@ -290,7 +290,8 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             let handled = false;
             view.someProp("clipboardTextParser", (f) => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const slice = (f as any)(text, view.state.$from, false, view);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const slice = (f as any)(text, (view.state as any).$from, false, view);
               if (slice) {
                 view.dispatch(view.state.tr.replaceSelection(slice));
                 handled = true;

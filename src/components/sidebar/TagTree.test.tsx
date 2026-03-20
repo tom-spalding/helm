@@ -39,7 +39,7 @@ const mockTree: Record<string, TagNode> = {
 describe("TagTree", () => {
   it("renders top-level tags", () => {
     render(
-      <TagTree tree={mockTree} onSelectNote={vi.fn()} selectedNoteId={null} />
+      <TagTree tree={mockTree} onSelectTag={vi.fn()} activeTag={null} />
     );
     expect(screen.getByText("#rl")).toBeInTheDocument();
     expect(screen.getByText("#ce")).toBeInTheDocument();
@@ -47,14 +47,14 @@ describe("TagTree", () => {
 
   it("does not show notes before tag is expanded", () => {
     render(
-      <TagTree tree={mockTree} onSelectNote={vi.fn()} selectedNoteId={null} />
+      <TagTree tree={mockTree} onSelectTag={vi.fn()} activeTag={null} />
     );
     expect(screen.queryByText("Rule Builder")).not.toBeInTheDocument();
   });
 
   it("expands a tag to show notes on click", () => {
     render(
-      <TagTree tree={mockTree} onSelectNote={vi.fn()} selectedNoteId={null} />
+      <TagTree tree={mockTree} onSelectTag={vi.fn()} activeTag={null} />
     );
     fireEvent.click(screen.getByText("#rl"));
     expect(screen.getByText("Rule Builder")).toBeInTheDocument();
@@ -63,19 +63,18 @@ describe("TagTree", () => {
   it("calls onSelectNote when a note is clicked", () => {
     const onSelect = vi.fn();
     render(
-      <TagTree tree={mockTree} onSelectNote={onSelect} selectedNoteId={null} />
+      <TagTree tree={mockTree} onSelectTag={onSelect} activeTag={null} />
     );
     fireEvent.click(screen.getByText("#rl"));
     fireEvent.click(screen.getByText("Rule Builder"));
     expect(onSelect).toHaveBeenCalledWith("01");
   });
 
-  it("highlights selected note", () => {
+  it("highlights the active tag", () => {
     render(
-      <TagTree tree={mockTree} onSelectNote={vi.fn()} selectedNoteId="01" />
+      <TagTree tree={mockTree} onSelectTag={vi.fn()} activeTag="rl" />
     );
-    fireEvent.click(screen.getByText("#rl"));
-    const noteBtn = screen.getByText("Rule Builder").closest("button");
-    expect(noteBtn?.className).toContain("bg-blue");
+    const tagBtn = screen.getByText("#rl").closest("button");
+    expect(tagBtn?.className).toContain("bg-[var(--color-surface)]");
   });
 });

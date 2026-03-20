@@ -187,7 +187,7 @@ export function KanbanView() {
               key={state}
               state={state}
               notes={notes.filter((n) => n.frontmatter.state === state)}
-              onCreate={() => createNoteInColumn(state)}
+              onCreate={() => createNoteInColumn(state as NoteState)}
             />
           ))}
         </div>

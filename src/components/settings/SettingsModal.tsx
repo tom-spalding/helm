@@ -2,7 +2,6 @@ import { useState } from "react";
 import { THEMES } from "../../lib/themes";
 import { useThemeStore } from "../../store/theme";
 import { useSettingsStore } from "../../store/settings";
-import { DEFAULT_SETTINGS } from "../../lib/settings";
 
 // ── Tab types ────────────────────────────────────────────────────────────────
 
