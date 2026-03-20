@@ -1,8 +1,20 @@
+import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useVault } from "./hooks/useVault";
 import { AppShell } from "./components/layout/AppShell";
+import { McpSetupModal } from "./components/McpSetupModal";
 
 export default function App() {
   const { loading, error } = useVault();
+  const [showMcpSetup, setShowMcpSetup] = useState(false);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("show-mcp-setup", () => setShowMcpSetup(true)).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, []);
 
   if (loading) {
     return (
@@ -20,5 +32,10 @@ export default function App() {
     );
   }
 
-  return <AppShell />;
+  return (
+    <>
+      <AppShell />
+      {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
+    </>
+  );
 }
