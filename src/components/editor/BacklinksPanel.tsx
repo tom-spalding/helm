@@ -22,43 +22,51 @@ export function BacklinksPanel({ note }: BacklinksPanelProps) {
 
   return (
     <div className="border-t border-[var(--color-border)] px-12 py-4 text-sm">
-      {outgoing.length > 0 && (
-        <div className="mb-4">
+      <div className="grid grid-cols-2 gap-6 max-h-40 overflow-y-auto">
+        {/* Left: always outgoing links */}
+        <div>
           <p className="mb-2 text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
             Links to
           </p>
-          <div className="flex flex-col gap-1">
-            {outgoing.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => selectNote(n.id)}
-                className="text-left text-sm text-[var(--color-accent)] hover:opacity-80"
-              >
-                → {n.frontmatter.title}
-              </button>
-            ))}
-          </div>
+          {outgoing.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {outgoing.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => selectNote(n.id)}
+                  className="text-left text-sm text-[var(--color-accent)] hover:opacity-80 truncate"
+                >
+                  → {n.frontmatter.title}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--color-text-muted)] opacity-50">None</p>
+          )}
         </div>
-      )}
 
-      {backlinks.length > 0 && (
+        {/* Right: always backlinks */}
         <div>
           <p className="mb-2 text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
             Backlinks
           </p>
-          <div className="flex flex-col gap-1">
-            {backlinks.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => selectNote(n.id)}
-                className="text-left text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              >
-                ← {n.frontmatter.title}
-              </button>
-            ))}
-          </div>
+          {backlinks.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {backlinks.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => selectNote(n.id)}
+                  className="text-left text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] truncate"
+                >
+                  ← {n.frontmatter.title}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--color-text-muted)] opacity-50">None</p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
