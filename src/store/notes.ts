@@ -4,7 +4,7 @@
  * full-text search index for note discovery.
  */
 import { create } from "zustand";
-import type { Note } from "../types/note";
+import type { Note, VaultConfig } from "../types/note";
 import { buildIndex, searchNotes, type NoteIndex } from "../lib/search";
 
 /**
@@ -50,12 +50,14 @@ function buildTagTree(notes: Note[]): Record<string, TagNode> {
  * Notes store state and actions.
  */
 interface NoteStore {
-  /** All loaded notes from the vault */
+  /** All loaded notes across all vaults */
   notes: Note[];
   /** ID of currently selected note, or null if none selected */
   selectedNoteId: string | null;
-  /** Absolute path to the vault directory */
-  vaultPath: string | null;
+  /** All configured vaults */
+  vaults: VaultConfig[];
+  /** Currently active vault filter (null = show all vaults) */
+  activeVaultId: string | null;
   /** Hierarchical tree of tags with associated notes */
   tagTree: Record<string, TagNode>;
   /** Full-text search index for fast lookups */
@@ -67,8 +69,16 @@ interface NoteStore {
 
   /** Replace all notes and rebuild indexes */
   setNotes: (notes: Note[]) => void;
-  /** Set the vault directory path */
-  setVaultPath: (path: string) => void;
+  /** Append notes from a new vault without replacing existing ones */
+  appendNotes: (notes: Note[]) => void;
+  /** Replace all vault configs and persist */
+  setVaults: (vaults: VaultConfig[]) => void;
+  /** Add a single vault config */
+  addVaultConfig: (vault: VaultConfig) => void;
+  /** Remove a vault config by ID */
+  removeVaultConfig: (id: string) => void;
+  /** Set the active vault filter (null = show all) */
+  setActiveVaultId: (id: string | null) => void;
   /** Select a note by ID (or null to deselect) */
   selectNote: (id: string | null) => void;
   /** Update an existing note and rebuild indexes */
@@ -88,7 +98,8 @@ interface NoteStore {
 export const useNoteStore = create<NoteStore>((set, get) => ({
   notes: [],
   selectedNoteId: null,
-  vaultPath: null,
+  vaults: [],
+  activeVaultId: null,
   tagTree: {},
   searchIndex: null,
   searchQuery: "",
@@ -98,7 +109,16 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     const searchIndex = buildIndex(notes);
     set({ notes, tagTree: buildTagTree(notes), searchIndex });
   },
-  setVaultPath: (path) => set({ vaultPath: path }),
+  appendNotes: (incoming) => {
+    const existing = get().notes.filter((n) => !incoming.some((i) => i.filePath === n.filePath));
+    const notes = [...existing, ...incoming];
+    const searchIndex = buildIndex(notes);
+    set({ notes, tagTree: buildTagTree(notes), searchIndex });
+  },
+  setVaults: (vaults) => set({ vaults }),
+  addVaultConfig: (vault) => set((s) => ({ vaults: [...s.vaults, vault] })),
+  removeVaultConfig: (id) => set((s) => ({ vaults: s.vaults.filter((v) => v.id !== id) })),
+  setActiveVaultId: (id) => set({ activeVaultId: id }),
   selectNote: (id) => set({ selectedNoteId: id }),
   updateNote: (updated) =>
     set((state) => {

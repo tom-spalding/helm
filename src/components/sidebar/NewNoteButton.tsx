@@ -6,16 +6,18 @@ import { useUIStore } from "../../store/ui";
 import type { Note } from "../../types/note";
 
 export function NewNoteButton() {
-  const { vaultPath, addNote, selectNote } = useNoteStore();
+  const { vaults, activeVaultId, addNote, selectNote } = useNoteStore();
   const { setView } = useUIStore();
 
+  // Create in the active vault, or the first vault available
+  const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
+
   async function handleCreate() {
-    if (!vaultPath) return;
+    if (!vault) return;
 
     const id = ulid();
     const title = "Untitled";
-    // Use id suffix to avoid filename collisions with other "Untitled" notes
-    const filePath = noteFilePath(vaultPath, `untitled-${id.slice(-8).toLowerCase()}`);
+    const filePath = noteFilePath(vault.path, `untitled-${id.slice(-8).toLowerCase()}`);
     const fileName = filePath.split("/").pop()!;
 
     const note: Note = {
@@ -23,6 +25,7 @@ export function NewNoteButton() {
       filePath,
       fileName,
       content: "",
+      vaultId: vault.id,
       frontmatter: {
         id,
         title,
@@ -50,7 +53,8 @@ export function NewNoteButton() {
   return (
     <button
       onClick={handleCreate}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+      disabled={!vault}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] disabled:opacity-40 disabled:cursor-not-allowed"
     >
       <span className="text-base leading-none">+</span>
       <span>New Note</span>

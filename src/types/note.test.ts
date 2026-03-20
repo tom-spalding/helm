@@ -8,6 +8,7 @@ function makeNote(overrides: Partial<Note["frontmatter"]>): Note {
     filePath: "/notes/test.md",
     fileName: "test.md",
     content: "",
+    vaultId: "",
     frontmatter: {
       id: "01JPMXYZ123",
       title: "Test",

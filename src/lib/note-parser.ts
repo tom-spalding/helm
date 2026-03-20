@@ -41,7 +41,7 @@ export function parseNote(raw: string, filePath: string): Note {
     tags: mergedTags, // must be after ...data spread to include inline tags
   };
 
-  return { id: frontmatter.id, frontmatter, content, filePath, fileName };
+  return { id: frontmatter.id, frontmatter, content, filePath, fileName, vaultId: "" };
 }
 
 /**

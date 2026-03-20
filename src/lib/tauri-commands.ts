@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { VaultConfig } from "../types/note";
 
 export interface NoteFile {
   path: string;
@@ -7,11 +8,21 @@ export interface NoteFile {
 }
 
 export const tauriCommands = {
+  // Legacy — used only for migration from single-vault config
   getVaultPath: (): Promise<string | null> =>
     invoke("get_vault_path"),
 
-  setVaultPath: (path: string): Promise<void> =>
-    invoke("set_vault_path", { path }),
+  getVaults: (): Promise<VaultConfig[]> =>
+    invoke("get_vaults"),
+
+  setVaults: (vaults: VaultConfig[]): Promise<void> =>
+    invoke("set_vaults", { vaults }),
+
+  openFolderDialog: async (): Promise<string | null> => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({ directory: true, multiple: false, title: "Add Vault" });
+    return typeof selected === "string" ? selected : null;
+  },
 
   listNotes: (vaultPath: string): Promise<NoteFile[]> =>
     invoke("list_notes", { vaultPath }),

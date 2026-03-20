@@ -9,6 +9,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_vault_path,
             set_vault_path,
+            get_vaults,
+            set_vaults,
             list_notes,
             read_note,
             write_note,

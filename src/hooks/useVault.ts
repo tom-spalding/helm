@@ -1,42 +1,116 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { ulid } from "ulid";
 import { tauriCommands } from "../lib/tauri-commands";
-import { parseNote } from "../lib/note-parser";
+import { parseNote, serializeNote } from "../lib/note-parser";
 import { useNoteStore } from "../store/notes";
+import type { VaultConfig, Note } from "../types/note";
 
+/**
+ * Repair missing required frontmatter fields in all notes in a vault.
+ * Only writes files that actually need changes.
+ */
+async function repairVaultFrontmatter(vaultPath: string): Promise<void> {
+  const today = new Date().toISOString().split("T")[0];
+  let files;
+  try {
+    files = await tauriCommands.listNotes(vaultPath);
+  } catch {
+    return;
+  }
+
+  for (const f of files) {
+    const note = parseNote(f.content, f.path);
+    let dirty = false;
+    const fm = { ...note.frontmatter };
+
+    if (!fm.id) {
+      fm.id = ulid();
+      dirty = true;
+    }
+    if (!fm.title) {
+      const base = f.path.split("/").pop()?.replace(/\.md$/i, "") ?? "Untitled";
+      fm.title = base
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      dirty = true;
+    }
+    if (!fm.created) {
+      fm.created = today;
+      dirty = true;
+    }
+    if (!fm.updated) {
+      fm.updated = today;
+      dirty = true;
+    }
+
+    if (dirty) {
+      const patched: Note = { ...note, id: fm.id, frontmatter: fm };
+      try {
+        await tauriCommands.writeNote(f.path, serializeNote(patched));
+      } catch {
+        // Non-fatal — skip unwritable files
+      }
+    }
+  }
+}
+
+/**
+ * Load all notes from a single vault and add them to the store.
+ */
+async function loadVault(vault: VaultConfig): Promise<void> {
+  const files = await tauriCommands.listNotes(vault.path);
+  const notes: Note[] = files.map((f) => ({
+    ...parseNote(f.content, f.path),
+    vaultId: vault.id,
+  }));
+  useNoteStore.getState().appendNotes(notes);
+  await tauriCommands.watchVault(vault.path);
+}
+
+/**
+ * Add a new vault: repair its frontmatter, persist config, load notes, start watcher.
+ */
+export async function addVault(path: string): Promise<void> {
+  await repairVaultFrontmatter(path);
+
+  const name = path.split("/").pop() ?? "vault";
+  const vault: VaultConfig = { id: ulid(), name, path };
+  const store = useNoteStore.getState();
+  const updatedVaults = [...store.vaults, vault];
+
+  store.addVaultConfig(vault);
+  await tauriCommands.setVaults(updatedVaults);
+  await loadVault(vault);
+}
+
+/**
+ * Remove a vault from the store and config. Files on disk are untouched.
+ */
+export async function removeVault(id: string): Promise<void> {
+  const store = useNoteStore.getState();
+  const updatedVaults = store.vaults.filter((v) => v.id !== id);
+
+  store.removeVaultConfig(id);
+  // Remove all notes belonging to this vault
+  const toRemove = store.notes.filter((n) => n.vaultId === id);
+  for (const note of toRemove) {
+    store.removeNote(note.id);
+  }
+  if (store.activeVaultId === id) {
+    store.setActiveVaultId(null);
+  }
+  await tauriCommands.setVaults(updatedVaults);
+}
+
+/**
+ * Hook that initializes the vault system on app startup.
+ * Handles migration from single-vault to multi-vault config.
+ * Only call this once at the top level (App.tsx).
+ */
 export function useVault() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { setNotes, setVaultPath } = useNoteStore();
-
-  async function loadVault(path: string) {
-    setLoading(true);
-    try {
-      const files = await tauriCommands.listNotes(path);
-      const notes = files.map((f) => parseNote(f.content, f.path));
-      setNotes(notes);
-      setVaultPath(path);
-      await tauriCommands.watchVault(path);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function promptVaultSelection() {
-    try {
-      // Use Tauri dialog to pick a directory
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({ directory: true, multiple: false, title: "Select your notes vault" });
-      if (selected && typeof selected === "string") {
-        await tauriCommands.setVaultPath(selected);
-        await loadVault(selected);
-      }
-    } catch (e) {
-      setError(String(e));
-    }
-  }
 
   useEffect(() => {
     let unlistenChanged: (() => void) | undefined;
@@ -44,11 +118,22 @@ export function useVault() {
 
     async function init() {
       try {
-        const saved = await tauriCommands.getVaultPath();
-        if (saved) {
-          await loadVault(saved);
-        } else {
-          setLoading(false);
+        let vaults = await tauriCommands.getVaults();
+
+        // Migration: single-vault → multi-vault
+        if (vaults.length === 0) {
+          const legacyPath = await tauriCommands.getVaultPath();
+          if (legacyPath) {
+            const name = legacyPath.split("/").pop() ?? "vault";
+            const migrated: VaultConfig = { id: ulid(), name, path: legacyPath };
+            vaults = [migrated];
+            await tauriCommands.setVaults(vaults);
+          }
+        }
+
+        useNoteStore.getState().setVaults(vaults);
+        if (vaults.length > 0) {
+          await Promise.all(vaults.map(loadVault));
         }
 
         // Listen for file creates/modifications
@@ -57,9 +142,13 @@ export function useVault() {
           const store = useNoteStore.getState();
 
           for (const filePath of changedPaths) {
+            const vault = store.vaults.find((v) => filePath.startsWith(v.path));
             try {
               const content = await tauriCommands.readNote(filePath);
-              const note = parseNote(content, filePath);
+              const note: Note = {
+                ...parseNote(content, filePath),
+                vaultId: vault?.id ?? "",
+              };
               const existing = store.notes.find((n) => n.filePath === filePath);
               if (existing) {
                 store.updateNote(note);
@@ -67,12 +156,12 @@ export function useVault() {
                 store.addNote(note);
               }
             } catch {
-              // Transient read error (race with write) — ignore, note stays in store
+              // Transient read error (race with write) — ignore
             }
           }
         });
 
-        // Listen for confirmed file deletions (separate event from Rust)
+        // Listen for confirmed file deletions
         unlistenDeleted = await listen<string[]>("vault-note-deleted", (event) => {
           const deletedPaths = event.payload;
           const store = useNoteStore.getState();
@@ -85,6 +174,7 @@ export function useVault() {
         });
       } catch (e) {
         setError(String(e));
+      } finally {
         setLoading(false);
       }
     }
@@ -97,5 +187,5 @@ export function useVault() {
     };
   }, []);
 
-  return { loading, error, promptVaultSelection };
+  return { loading, error };
 }

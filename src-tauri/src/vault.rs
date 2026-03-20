@@ -26,6 +26,32 @@ pub struct NoteFile {
     pub content: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VaultConfig {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+}
+
+#[tauri::command]
+pub async fn get_vaults(app: AppHandle) -> Result<Vec<VaultConfig>, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    if let Some(v) = store.get("vaults") {
+        let vaults: Vec<VaultConfig> = serde_json::from_value(v).map_err(|e| e.to_string())?;
+        Ok(vaults)
+    } else {
+        Ok(vec![])
+    }
+}
+
+#[tauri::command]
+pub async fn set_vaults(app: AppHandle, vaults: Vec<VaultConfig>) -> Result<(), String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let val = serde_json::to_value(&vaults).map_err(|e| e.to_string())?;
+    store.set("vaults", val);
+    store.save().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn get_vault_path(app: AppHandle) -> Result<Option<String>, String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;

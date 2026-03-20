@@ -8,6 +8,7 @@ import { useThemeStore } from "../../store/theme";
 import { THEMES } from "../../lib/themes";
 import type { Note } from "../../types/note";
 import { SettingsModal } from "../settings/SettingsModal";
+import { addVault, removeVault } from "../../hooks/useVault";
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "📊" },
@@ -65,14 +66,43 @@ export function LeftColumn() {
   const [noteFilter, setNoteFilter] = useState<NoteFilter>("all");
   const [showSettings, setShowSettings] = useState(false);
   const { activeView, setView } = useUIStore();
-  const { notes, tagTree, selectedNoteId, selectNote, removeNote, searchQuery, searchResults, search } =
+  const { notes, tagTree, selectedNoteId, selectNote, removeNote, searchQuery, searchResults, search, vaults, activeVaultId, setActiveVaultId } =
     useNoteStore();
   const { theme, setTheme } = useThemeStore();
 
-  const visibleNotes = filterAndSort(notes, noteFilter);
+  // Apply vault filter first, then note filter
+  const vaultFilteredNotes = activeVaultId
+    ? notes.filter((n) => n.vaultId === activeVaultId)
+    : notes;
+  const visibleNotes = filterAndSort(vaultFilteredNotes, noteFilter);
 
   function setFilter(filter: NoteFilter) {
     setNoteFilter((prev) => (prev === filter ? "all" : filter));
+  }
+
+  function handleVaultClick(id: string) {
+    setActiveVaultId(activeVaultId === id ? null : id);
+  }
+
+  async function handleAddVault() {
+    try {
+      const path = await tauriCommands.openFolderDialog();
+      if (path) await addVault(path);
+    } catch (e) {
+      console.error("Failed to add vault:", e);
+    }
+  }
+
+  async function handleRemoveVault(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const { confirm } = await import("@tauri-apps/plugin-dialog");
+    const vault = vaults.find((v) => v.id === id);
+    const confirmed = await confirm(
+      `Remove vault "${vault?.name}"? Notes on disk are untouched.`,
+      { title: "Remove Vault", kind: "warning" }
+    );
+    if (!confirmed) return;
+    await removeVault(id);
   }
 
   async function handleDeleteNote(note: Note, e: React.MouseEvent) {
@@ -106,6 +136,13 @@ export function LeftColumn() {
   const filterNavCls = (f: NoteFilter) =>
     `flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
       noteFilter === f
+        ? "bg-[var(--color-surface)] text-[var(--color-text)]"
+        : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+    }`;
+
+  const vaultNavCls = (id: string) =>
+    `group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+      activeVaultId === id
         ? "bg-[var(--color-surface)] text-[var(--color-text)]"
         : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
     }`;
@@ -188,6 +225,44 @@ export function LeftColumn() {
                 {notes.filter((n) => n.frontmatter.pinned).length}
               </span>
             )}
+          </button>
+        </div>
+
+        {/* Vaults section */}
+        <div className="mb-2 border-t border-[var(--color-border)] pt-2">
+          <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] opacity-60">
+            Vaults
+          </p>
+          {vaults.map((vault) => (
+            <button
+              key={vault.id}
+              className={vaultNavCls(vault.id)}
+              onClick={() => handleVaultClick(vault.id)}
+            >
+              <span className="shrink-0">📁</span>
+              <span className="flex-1 truncate text-left">{vault.name}</span>
+              <span className="text-xs opacity-40">
+                {notes.filter((n) => n.vaultId === vault.id).length}
+              </span>
+              <span
+                role="button"
+                onClick={(e) => handleRemoveVault(vault.id, e)}
+                title="Remove vault"
+                className="ml-1 shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={handleAddVault}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          >
+            <span className="text-base leading-none">+</span>
+            <span>Add Vault</span>
           </button>
         </div>
 

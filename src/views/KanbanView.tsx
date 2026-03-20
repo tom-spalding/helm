@@ -102,23 +102,26 @@ function KanbanColumn({
 }
 
 export function KanbanView() {
-  const { notes, updateNote, addNote, selectNote, vaultPath } = useNoteStore();
+  const { notes, updateNote, addNote, selectNote, vaults, activeVaultId } = useNoteStore();
   const { setView } = useUIStore();
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
   async function createNoteInColumn(state: NoteState) {
-    if (!vaultPath) return;
+    if (!vault) return;
     const id = ulid();
-    const filePath = noteFilePath(vaultPath, `untitled-${id.slice(-8).toLowerCase()}`);
+    const filePath = noteFilePath(vault.path, `untitled-${id.slice(-8).toLowerCase()}`);
     const note: Note = {
       id,
       filePath,
       fileName: filePath.split("/").pop()!,
       content: "",
+      vaultId: vault.id,
       frontmatter: {
         id,
         title: "Untitled",

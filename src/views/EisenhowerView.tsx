@@ -106,20 +106,23 @@ function Quadrant({ id, notes, onCreate }: QuadrantProps) {
 }
 
 export function EisenhowerView() {
-  const { notes, updateNote, addNote, selectNote, vaultPath } = useNoteStore();
+  const { notes, updateNote, addNote, selectNote, vaults, activeVaultId } = useNoteStore();
   const { setView } = useUIStore();
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
+
   async function createNoteInQuadrant(quadrant: EisenhowerQuadrant) {
-    if (!vaultPath) return;
+    if (!vault) return;
     const q = EISENHOWER_QUADRANTS[quadrant];
     const id = ulid();
-    const filePath = noteFilePath(vaultPath, `untitled-${id.slice(-8).toLowerCase()}`);
+    const filePath = noteFilePath(vault.path, `untitled-${id.slice(-8).toLowerCase()}`);
     const note: Note = {
       id,
       filePath,
       fileName: filePath.split("/").pop()!,
       content: "",
+      vaultId: vault.id,
       frontmatter: {
         id,
         title: "Untitled",

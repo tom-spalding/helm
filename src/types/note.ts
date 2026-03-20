@@ -4,6 +4,18 @@
  * containing metadata like tags, state, deadlines, and links.
  */
 
+/**
+ * Configuration for a single vault (a folder of .md files).
+ */
+export interface VaultConfig {
+  /** Stable ULID — survives renames */
+  id: string;
+  /** Display name (folder's basename) */
+  name: string;
+  /** Absolute path on disk */
+  path: string;
+}
+
 /** Kanban/workflow state of a note */
 export type NoteState = "Prepare" | "Doing" | "Maintain" | "Done";
 
@@ -58,6 +70,8 @@ export interface Note {
   filePath: string;
   /** Filename only (e.g., "rule-builder.md") */
   fileName: string;
+  /** ID of the vault this note belongs to */
+  vaultId: string;
 }
 
 /**

@@ -10,6 +10,7 @@ function makeNote(id: string, title: string, tags: string[]): Note {
     filePath: `/notes/${id}.md`,
     fileName: `${id}.md`,
     content: "",
+    vaultId: "",
     frontmatter: {
       id,
       title,

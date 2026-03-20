@@ -13,6 +13,7 @@ function makeNote(
     filePath: `/notes/${id}.md`,
     fileName: `${id}.md`,
     content,
+    vaultId: "",
     frontmatter: {
       id,
       title,

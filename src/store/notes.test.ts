@@ -9,6 +9,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
     filePath: "/notes/test.md",
     fileName: "test.md",
     content: "Test content",
+    vaultId: "vault-1",
     frontmatter: {
       id: "01JPMXYZ123",
       title: "Test Note",
@@ -27,7 +28,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
 
 describe("useNoteStore", () => {
   beforeEach(() => {
-    useNoteStore.setState({ notes: [], selectedNoteId: null, vaultPath: null });
+    useNoteStore.setState({ notes: [], selectedNoteId: null, vaults: [], activeVaultId: null });
   });
 
   it("loads notes into the store", () => {

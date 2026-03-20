@@ -162,7 +162,8 @@ interface NoteEditorProps {
 
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   ({ note, onSave, locked = false }, ref) => {
-    const { vaultPath, notes } = useNoteStore();
+    const { vaults, notes } = useNoteStore();
+    const vaultPath = vaults.find((v) => v.id === note.vaultId)?.path ?? null;
     const [popup, setPopup] = useState<SuggestionPopup | null>(null);
 
     // Refs prevent stale closures inside the TipTap extension config
