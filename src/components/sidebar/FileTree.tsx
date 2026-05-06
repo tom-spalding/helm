@@ -1,13 +1,37 @@
 import React, { useState, useMemo } from "react";
+import { ulid } from "ulid";
 import { useNoteStore } from "../../store/notes";
 import { useUIStore } from "../../store/ui";
 import { buildTree, getAllFolderPaths, type TreeNode } from "../../lib/file-tree";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { tauriCommands } from "../../lib/tauri-commands";
+import { serializeNote } from "../../lib/note-parser";
 import type { Note, VaultConfig } from "../../types/note";
 
 interface Props {
   notes: Note[];
   vault: VaultConfig;
+}
+
+function NewFolderInput({ onCommit }: { onCommit: (name: string) => void }) {
+  return (
+    <div style={{ paddingLeft: 8 }} className="flex items-center gap-1.5 py-1 pr-2">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      </svg>
+      <input
+        autoFocus
+        placeholder="folder name"
+        className="flex-1 rounded bg-[var(--color-bg)] px-1 text-sm text-[var(--color-text)] outline outline-1 outline-[var(--color-accent)]"
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onCommit((e.target as HTMLInputElement).value.trim());
+          if (e.key === "Escape") onCommit("");
+          e.stopPropagation();
+        }}
+        onBlur={(e) => onCommit(e.target.value.trim())}
+      />
+    </div>
+  );
 }
 
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
@@ -19,6 +43,7 @@ export function FileTree({ notes, vault }: Props) {
   // renamingPath is scaffolded here; wired in a later task
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>(null);
+  const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 
   const tree = useMemo(() => buildTree(notes, vault.path), [notes, vault.path]);
   // allFolders is scaffolded here for use in the "Move to…" context menu (later task)
@@ -28,6 +53,42 @@ export function FileTree({ notes, vault }: Props) {
   void renamingPath;
   void setRenamingPath;
   void allFolders;
+
+  async function handleCreateNote(folderPath: string) {
+    const id = ulid();
+    const slug = `untitled-${id.slice(-8).toLowerCase()}`;
+    const filePath = `${folderPath}/${slug}.md`;
+    const fileName = `${slug}.md`;
+    const today = new Date().toISOString().split("T")[0];
+
+    const note: Note = {
+      id,
+      filePath,
+      fileName,
+      content: "",
+      vaultId: vault.id,
+      frontmatter: {
+        id,
+        title: "Untitled",
+        created: today,
+        updated: today,
+        tags: [],
+        urgent: false,
+        important: false,
+        state: "Prepare",
+        blocked: false,
+      },
+    };
+
+    try {
+      await tauriCommands.writeNote(filePath, serializeNote(note));
+      useNoteStore.getState().addNote(note);
+      selectNote(id);
+      setView("notes");
+    } catch (e) {
+      console.error("Failed to create note:", e);
+    }
+  }
 
   function toggleFolder(path: string) {
     setExpanded((prev) => {
@@ -157,7 +218,7 @@ export function FileTree({ notes, vault }: Props) {
           <button
             title="New Note"
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
-            onClick={() => {/* wired in Task 5 */}}
+            onClick={() => handleCreateNote(vault.path)}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -176,7 +237,7 @@ export function FileTree({ notes, vault }: Props) {
           <button
             title="New Folder"
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
-            onClick={() => {/* wired in Task 5 */}}
+            onClick={() => setNewFolderParent(vault.path)}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -196,11 +257,24 @@ export function FileTree({ notes, vault }: Props) {
 
       {/* Tree */}
       <div className="flex-1 overflow-y-auto py-1 min-h-0">
-        {tree.length === 0 ? (
+        {tree.length === 0 && (
           <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No notes</p>
-        ) : (
-          tree.map((node) => renderNode(node))
         )}
+        {newFolderParent === vault.path && (
+          <NewFolderInput
+            onCommit={async (name) => {
+              if (name) {
+                try {
+                  await tauriCommands.createFolder(`${vault.path}/${name}`);
+                } catch (e) {
+                  console.error("Failed to create folder:", e);
+                }
+              }
+              setNewFolderParent(null);
+            }}
+          />
+        )}
+        {tree.map((node) => renderNode(node))}
       </div>
 
       {/* Context Menu — rendered at portal-like fixed position within this container */}
