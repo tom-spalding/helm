@@ -14,6 +14,7 @@ interface Props {
 }
 
 function NewFolderInput({ onCommit }: { onCommit: (name: string) => void }) {
+  const committed = React.useRef(false);
   return (
     <div style={{ paddingLeft: 8 }} className="flex items-center gap-1.5 py-1 pr-2">
       <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -24,11 +25,19 @@ function NewFolderInput({ onCommit }: { onCommit: (name: string) => void }) {
         placeholder="folder name"
         className="flex-1 rounded bg-[var(--color-bg)] px-1 text-sm text-[var(--color-text)] outline outline-1 outline-[var(--color-accent)]"
         onKeyDown={(e) => {
-          if (e.key === "Enter") onCommit((e.target as HTMLInputElement).value.trim());
-          if (e.key === "Escape") onCommit("");
+          if (e.key === "Enter") {
+            committed.current = true;
+            onCommit((e.target as HTMLInputElement).value.trim());
+          }
+          if (e.key === "Escape") {
+            committed.current = true;
+            onCommit("");
+          }
           e.stopPropagation();
         }}
-        onBlur={(e) => onCommit(e.target.value.trim())}
+        onBlur={(e) => {
+          if (!committed.current) onCommit(e.target.value.trim());
+        }}
       />
     </div>
   );

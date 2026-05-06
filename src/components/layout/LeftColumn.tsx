@@ -166,13 +166,12 @@ export function LeftColumn() {
 
         {/* File tree */}
         <div className="flex-1 overflow-hidden min-h-0 border-t border-[var(--color-border)] pt-2">
-          <FileTree
-            notes={vaultFilteredNotes}
-            vault={
-              vaults.find((v) => v.id === activeVaultId) ??
-              vaults[0] ?? { id: "", name: "", path: "" }
-            }
-          />
+          {(() => {
+            const activeVault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
+            return activeVault?.path ? (
+              <FileTree notes={vaultFilteredNotes} vault={activeVault} />
+            ) : null;
+          })()}
         </div>
       </div>
 
