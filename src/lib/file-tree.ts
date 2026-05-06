@@ -54,7 +54,7 @@ export function buildTree(notes: Note[], vaultPath: string): TreeNode[] {
     }
 
     const folderNodes: TreeNode[] = [...subfolders]
-      .sort()
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
       .map((fp) => ({
         kind: "folder" as const,
         name: fp.split("/").pop()!,
@@ -76,15 +76,16 @@ export function getAllFolderPaths(
   tree: TreeNode[],
   vaultPath: string
 ): Array<{ label: string; path: string }> {
+  const vault = vaultPath.replace(/\/+$/, "");
   const result: Array<{ label: string; path: string }> = [
-    { label: "/ (root)", path: vaultPath },
+    { label: "/ (root)", path: vault },
   ];
 
   function collect(nodes: TreeNode[]) {
     for (const node of nodes) {
       if (node.kind === "folder") {
         result.push({
-          label: node.path.slice(vaultPath.length + 1),
+          label: node.path.slice(vault.length + 1),
           path: node.path,
         });
         collect(node.children);
