@@ -75,6 +75,13 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
                 aria-haspopup="true"
                 aria-expanded={openSubmenu === i}
                 className={`${itemCls} justify-between cursor-default select-none`}
+                onClick={() => setOpenSubmenu(openSubmenu === i ? null : i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" || e.key === "ArrowLeft") {
+                    setOpenSubmenu(null);
+                    e.stopPropagation();
+                  }
+                }}
               >
                 <span>{item.label}</span>
                 <span className="ml-4 text-xs text-[var(--color-text-muted)]">▶</span>
