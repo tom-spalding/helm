@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useNoteStore } from "../../store/notes";
 import { useUIStore } from "../../store/ui";
 import { buildTree, getAllFolderPaths, type TreeNode } from "../../lib/file-tree";
@@ -20,9 +20,9 @@ export function FileTree({ notes, vault }: Props) {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>(null);
 
-  const tree = buildTree(notes, vault.path);
+  const tree = useMemo(() => buildTree(notes, vault.path), [notes, vault.path]);
   // allFolders is scaffolded here for use in the "Move to…" context menu (later task)
-  const allFolders = getAllFolderPaths(tree, vault.path);
+  const allFolders = useMemo(() => getAllFolderPaths(tree, vault.path), [tree, vault.path]);
 
   // Suppress unused-variable warnings for scaffolded state until later tasks wire them up
   void renamingPath;
@@ -46,7 +46,6 @@ export function FileTree({ notes, vault }: Props) {
     const isSelected = note.id === selectedNoteId;
     return (
       <div
-        key={note.id}
         style={{ paddingLeft: depth * 12 + 8 }}
         className={`group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors cursor-pointer ${
           isSelected
@@ -94,7 +93,7 @@ export function FileTree({ notes, vault }: Props) {
   ) {
     const isOpen = expanded.has(node.path);
     return (
-      <div key={node.path}>
+      <div>
         <div
           style={{ paddingLeft: depth * 12 + 8 }}
           className="group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] cursor-pointer transition-colors"
@@ -133,8 +132,18 @@ export function FileTree({ notes, vault }: Props) {
   }
 
   function renderNode(node: TreeNode, depth = 0): React.ReactNode {
-    if (node.kind === "folder") return renderFolder(node, depth);
-    return renderNote(node.note, depth);
+    if (node.kind === "folder") {
+      return (
+        <React.Fragment key={node.path}>
+          {renderFolder(node, depth)}
+        </React.Fragment>
+      );
+    }
+    return (
+      <React.Fragment key={node.note.id}>
+        {renderNote(node.note, depth)}
+      </React.Fragment>
+    );
   }
 
   return (
