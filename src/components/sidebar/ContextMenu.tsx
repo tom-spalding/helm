@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type ContextMenuItem =
   | { kind: "action"; label: string; danger?: boolean; onClick: () => void }
@@ -20,6 +20,12 @@ const itemCls =
 export function ContextMenu({ x, y, items, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
+  // Start at the requested position; clamped after the first paint so the
+  // menu never clips outside the viewport.
+  const [pos, setPos] = useState({ x, y });
+  // Whether to open submenus to the right or left. Determined after first
+  // paint based on remaining horizontal space.
+  const [submenuFlipped, setSubmenuFlipped] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -34,13 +40,28 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     };
   }, [onClose]);
 
+  // Clamp position so the menu stays fully within the viewport. Running in
+  // useLayoutEffect avoids the one-frame flash at the unclamped position.
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const clampedX = Math.min(x, window.innerWidth - rect.width - 4);
+    const clampedY = Math.min(y, window.innerHeight - rect.height - 4);
+    setPos({ x: clampedX, y: clampedY });
+
+    // Flip submenus left when there isn't enough room to the right. 160px is
+    // the submenu min-width plus a small buffer.
+    setSubmenuFlipped(window.innerWidth - rect.right < 164);
+  }, [x, y]);
+
   return (
-    <div ref={ref} className={menuCls} style={{ left: x, top: y }}>
+    <div ref={ref} role="menu" className={menuCls} style={{ left: pos.x, top: pos.y }}>
       {items.map((item, i) => {
         if (item.kind === "separator") {
           return <div key={i} className="my-1 border-t border-[var(--color-border)]" />;
         }
         if (item.kind === "submenu") {
+          const submenuPositionCls = submenuFlipped ? "right-full" : "left-full";
           return (
             <div
               key={i}
@@ -48,15 +69,23 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
               onMouseEnter={() => setOpenSubmenu(i)}
               onMouseLeave={() => setOpenSubmenu(null)}
             >
-              <div className={`${itemCls} justify-between cursor-default select-none`}>
+              <button
+                type="button"
+                role="menuitem"
+                aria-haspopup="true"
+                aria-expanded={openSubmenu === i}
+                className={`${itemCls} justify-between cursor-default select-none`}
+              >
                 <span>{item.label}</span>
                 <span className="ml-4 text-xs text-[var(--color-text-muted)]">▶</span>
-              </div>
+              </button>
               {openSubmenu === i && (
-                <div className={`absolute left-full top-0 ${menuCls}`}>
+                <div role="menu" className={`absolute ${submenuPositionCls} top-0 ${menuCls}`}>
                   {item.items.map((sub, j) => (
                     <button
                       key={j}
+                      type="button"
+                      role="menuitem"
                       className={itemCls}
                       onClick={() => { sub.onClick(); onClose(); }}
                     >
@@ -71,6 +100,8 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
         return (
           <button
             key={i}
+            type="button"
+            role="menuitem"
             className={`${itemCls} ${item.danger ? "text-red-400" : ""}`}
             onClick={() => { item.onClick(); onClose(); }}
           >
