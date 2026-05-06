@@ -5,6 +5,7 @@ interface TagTreeProps {
   tree: Record<string, TagNode>;
   onSelectTag: (fullTag: string) => void;
   activeTag: string | null;
+  showCount: boolean;
 }
 
 interface TagNodeItemProps {
@@ -14,9 +15,10 @@ interface TagNodeItemProps {
   depth?: number;
   onSelectTag: (fullTag: string) => void;
   activeTag: string | null;
+  showCount: boolean;
 }
 
-function TagNodeItem({ tag, fullPath, node, depth = 0, onSelectTag, activeTag }: TagNodeItemProps) {
+function TagNodeItem({ tag, fullPath, node, depth = 0, onSelectTag, activeTag, showCount }: TagNodeItemProps) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = Object.keys(node.children).length > 0;
   const isActive = activeTag === fullPath;
@@ -45,7 +47,7 @@ function TagNodeItem({ tag, fullPath, node, depth = 0, onSelectTag, activeTag }:
           }`}
         >
           <span>#{tag}</span>
-          <span className="ml-auto text-xs opacity-40">{totalCount}</span>
+          {showCount && <span className="ml-auto text-xs opacity-40">{totalCount}</span>}
         </button>
       </div>
 
@@ -60,6 +62,7 @@ function TagNodeItem({ tag, fullPath, node, depth = 0, onSelectTag, activeTag }:
               depth={depth + 1}
               onSelectTag={onSelectTag}
               activeTag={activeTag}
+              showCount={showCount}
             />
           ))}
         </div>
@@ -68,7 +71,7 @@ function TagNodeItem({ tag, fullPath, node, depth = 0, onSelectTag, activeTag }:
   );
 }
 
-export function TagTree({ tree, onSelectTag, activeTag }: TagTreeProps) {
+export function TagTree({ tree, onSelectTag, activeTag, showCount }: TagTreeProps) {
   return (
     <div>
       {Object.entries(tree)
@@ -81,6 +84,7 @@ export function TagTree({ tree, onSelectTag, activeTag }: TagTreeProps) {
             node={node}
             onSelectTag={onSelectTag}
             activeTag={activeTag}
+            showCount={showCount}
           />
         ))}
     </div>

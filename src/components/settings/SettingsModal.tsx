@@ -193,52 +193,30 @@ function ThemesTab() {
   );
 }
 
-interface GeneralSettings {
-  autocompleteWikiLinks: boolean;
-  autoSaveOnEdit: boolean;
-  pinnedNotesFloat: boolean;
-  showNoteCountOnTags: boolean;
-}
-
 function GeneralTab() {
-  // Local state for now — these aren't wired to any store yet, but the
-  // structure makes it trivial to connect later. onChange logs for debugging.
-  const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
-    autocompleteWikiLinks: true,
-    autoSaveOnEdit: true,
-    pinnedNotesFloat: true,
-    showNoteCountOnTags: true,
-  });
-
-  function toggleSetting(key: keyof GeneralSettings) {
-    setGeneralSettings((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      console.log("[Settings] General:", next);
-      return next;
-    });
-  }
+  const { settings, updateSettings } = useSettingsStore();
 
   return (
     <div className="flex flex-col gap-1">
       <CheckboxRow
         label="Autocomplete WikiLinks"
-        checked={generalSettings.autocompleteWikiLinks}
-        onChange={() => toggleSetting("autocompleteWikiLinks")}
+        checked={settings.autocompleteWikiLinks}
+        onChange={(v) => updateSettings({ autocompleteWikiLinks: v })}
       />
       <CheckboxRow
         label="Auto-save on edit"
-        checked={generalSettings.autoSaveOnEdit}
-        onChange={() => toggleSetting("autoSaveOnEdit")}
+        checked={settings.autoSaveOnEdit}
+        onChange={(v) => updateSettings({ autoSaveOnEdit: v })}
       />
       <CheckboxRow
         label="Pinned notes float to top"
-        checked={generalSettings.pinnedNotesFloat}
-        onChange={() => toggleSetting("pinnedNotesFloat")}
+        checked={settings.pinnedNotesFloat}
+        onChange={(v) => updateSettings({ pinnedNotesFloat: v })}
       />
       <CheckboxRow
         label="Show note count on tags"
-        checked={generalSettings.showNoteCountOnTags}
-        onChange={() => toggleSetting("showNoteCountOnTags")}
+        checked={settings.showNoteCountOnTags}
+        onChange={(v) => updateSettings({ showNoteCountOnTags: v })}
       />
     </div>
   );

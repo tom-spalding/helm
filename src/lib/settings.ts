@@ -7,6 +7,14 @@ export interface Settings {
   fontSize: number;
   /** Line height as a unitless multiplier (1.2–2.2) */
   lineHeight: number;
+  /** Show [[WikiLink]] autocomplete suggestions while typing */
+  autocompleteWikiLinks: boolean;
+  /** Debounced auto-save 1s after typing stops */
+  autoSaveOnEdit: boolean;
+  /** Pinned notes sort to the top of the note list */
+  pinnedNotesFloat: boolean;
+  /** Show note count badge on tags in the sidebar */
+  showNoteCountOnTags: boolean;
 }
 
 /**
@@ -15,6 +23,10 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   fontSize: 16,
   lineHeight: 1.7,
+  autocompleteWikiLinks: true,
+  autoSaveOnEdit: true,
+  pinnedNotesFloat: true,
+  showNoteCountOnTags: true,
 };
 
 /**

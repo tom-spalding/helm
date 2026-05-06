@@ -140,6 +140,7 @@ import {
 import type { Note } from "../../types/note";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
+import { useSettingsStore } from "../../store/settings";
 
 const lowlight = createLowlight(common);
 
@@ -163,11 +164,16 @@ interface NoteEditorProps {
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   ({ note, onSave, locked = false }, ref) => {
     const { vaults, notes } = useNoteStore();
+    const { settings } = useSettingsStore();
     const vaultPath = vaults.find((v) => v.id === note.vaultId)?.path ?? null;
     const [popup, setPopup] = useState<SuggestionPopup | null>(null);
 
     // Refs prevent stale closures inside the TipTap extension config
     const notesRef = useRef(notes);
+    const autocompleteRef = useRef(settings.autocompleteWikiLinks);
+    autocompleteRef.current = settings.autocompleteWikiLinks;
+    const autoSaveRef = useRef(settings.autoSaveOnEdit);
+    autoSaveRef.current = settings.autoSaveOnEdit;
     notesRef.current = notes;
     const noteIdRef = useRef(note.id);
     noteIdRef.current = note.id;
@@ -193,6 +199,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           suggestion: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             items: ({ query }: any) =>
+              !autocompleteRef.current ? [] :
               notesRef.current
                 .filter(
                   (n) =>
@@ -355,6 +362,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     useEffect(() => {
       if (!editor) return;
       const handler = () => {
+        if (!autoSaveRef.current) return;
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = setTimeout(triggerSave, 1000);
       };

@@ -5,6 +5,7 @@ import { useNoteStore } from "../../store/notes";
 import { NewNoteButton } from "../sidebar/NewNoteButton";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useThemeStore } from "../../store/theme";
+import { useSettingsStore } from "../../store/settings";
 import { THEMES } from "../../lib/themes";
 import type { Note } from "../../types/note";
 import { SettingsModal } from "../settings/SettingsModal";
@@ -37,7 +38,7 @@ function PinIcon() {
 
 type NoteFilter = "all" | "locked" | "pinned" | string; // string = tag path
 
-function filterAndSort(notes: Note[], filter: NoteFilter): Note[] {
+function filterAndSort(notes: Note[], filter: NoteFilter, pinnedFloat: boolean): Note[] {
   let filtered: Note[];
   if (filter === "locked") {
     filtered = notes.filter((n) => n.frontmatter.locked);
@@ -54,9 +55,11 @@ function filterAndSort(notes: Note[], filter: NoteFilter): Note[] {
     filtered = notes;
   }
   return [...filtered].sort((a, b) => {
-    const pinA = a.frontmatter.pinned ? 1 : 0;
-    const pinB = b.frontmatter.pinned ? 1 : 0;
-    if (pinB !== pinA) return pinB - pinA;
+    if (pinnedFloat) {
+      const pinA = a.frontmatter.pinned ? 1 : 0;
+      const pinB = b.frontmatter.pinned ? 1 : 0;
+      if (pinB !== pinA) return pinB - pinA;
+    }
     return (b.frontmatter.updated || "").localeCompare(a.frontmatter.updated || "");
   });
 }
@@ -69,12 +72,13 @@ export function LeftColumn() {
   const { notes, tagTree, selectedNoteId, selectNote, removeNote, searchQuery, searchResults, search, vaults, activeVaultId, setActiveVaultId } =
     useNoteStore();
   const { theme, setTheme } = useThemeStore();
+  const { settings } = useSettingsStore();
 
   // Apply vault filter first, then note filter
   const vaultFilteredNotes = activeVaultId
     ? notes.filter((n) => n.vaultId === activeVaultId)
     : notes;
-  const visibleNotes = filterAndSort(vaultFilteredNotes, noteFilter);
+  const visibleNotes = filterAndSort(vaultFilteredNotes, noteFilter, settings.pinnedNotesFloat);
 
   function setFilter(filter: NoteFilter) {
     setNoteFilter((prev) => (prev === filter ? "all" : filter));
@@ -278,6 +282,7 @@ export function LeftColumn() {
               tree={tagTree}
               onSelectTag={(tag) => setFilter(tag)}
               activeTag={typeof noteFilter === "string" && !["all", "locked", "pinned"].includes(noteFilter) ? noteFilter : null}
+              showCount={settings.showNoteCountOnTags}
             />
           </div>
         )}
