@@ -175,6 +175,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     popupRef.current = popup;
     const setPopupRef = useRef(setPopup);
     setPopupRef.current = setPopup;
+    // Tracks the last content we wrote to disk so we can distinguish our own
+    // saves from external file changes (e.g. from Claude Code or MCP server).
+    const lastSavedContentRef = useRef(note.content);
 
     const editor = useEditor({
       extensions: [
@@ -312,9 +315,27 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       focus: () => editor?.commands.focus("end"),
     }), [editor]);
 
+    // Reset editor when switching to a different note
     useEffect(() => {
-      if (editor) editor.commands.setContent(note.content);
+      if (editor) {
+        editor.commands.setContent(note.content);
+        lastSavedContentRef.current = note.content;
+      }
     }, [note.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Reload editor when the file is updated externally (e.g. by Claude Code or MCP).
+    // We distinguish external changes from our own saves by tracking lastSavedContentRef.
+    useEffect(() => {
+      if (!editor) return;
+      if (note.content === lastSavedContentRef.current) return;
+      // Cancel any pending auto-save so it doesn't overwrite the external change
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      editor.commands.setContent(note.content);
+      lastSavedContentRef.current = note.content;
+    }, [note.content]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
       if (editor) editor.setEditable(!locked);
@@ -326,6 +347,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       if (!editor) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const md = (editor.storage as any).markdown?.getMarkdown?.() ?? editor.getText();
+      lastSavedContentRef.current = md; // mark as our own save so the file watcher doesn't reload
       onSave(md);
     }, [editor, onSave]);
 

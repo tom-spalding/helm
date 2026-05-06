@@ -355,9 +355,10 @@ export function LeftColumn() {
         </button>
         <button
           onClick={() => setCollapsed(true)}
-          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          title="Collapse sidebar"
+          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
-          ← Collapse
+          ←
         </button>
       </div>
 
