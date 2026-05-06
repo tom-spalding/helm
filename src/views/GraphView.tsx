@@ -3,7 +3,7 @@
  * Shows all notes as nodes and wiki links as edges. Click any node to
  * open that note. Node size indicates number of outgoing links.
  */
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useNoteStore } from "../store/notes";
 import { useUIStore } from "../store/ui";
@@ -24,6 +24,19 @@ export function GraphView() {
   const { setView } = useUIStore();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setSize({ width, height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const titleToId = new Map(notes.map((n) => [n.frontmatter.title.toLowerCase(), n.id]));
 
@@ -62,38 +75,50 @@ export function GraphView() {
   );
 
   return (
-    <div className="h-full w-full" style={{ background: "var(--color-bg)" }}>
-      <ForceGraph2D
-        ref={fgRef}
-        graphData={graphData}
-        backgroundColor="var(--color-bg)"
-        nodeLabel="label"
-        nodeColor={() => "var(--color-accent)"}
-        linkColor={() => "#6e6e73"}
-        nodeRelSize={5}
-        onNodeClick={handleNodeClick}
-        nodeCanvasObject={(
-          node: { x?: number; y?: number; label?: string },
-          ctx: CanvasRenderingContext2D,
-          globalScale: number
-        ) => {
-          const { x = 0, y = 0, label = "" } = node;
-          const fontSize = 12 / globalScale;
-
-          ctx.beginPath();
-          ctx.arc(x, y, 5, 0, 2 * Math.PI);
-          ctx.fillStyle = "#0a84ff";
-          ctx.fill();
-
-          if (globalScale > 0.6) {
-            ctx.font = `${fontSize}px -apple-system, sans-serif`;
-            ctx.fillStyle = "#f2f2f7";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "top";
-            ctx.fillText(label, x, y + 7);
+    <div className="h-full w-full p-6" style={{ background: "var(--color-bg)" }}>
+      <div
+        ref={containerRef}
+        className="h-full w-full overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
+      >
+        <ForceGraph2D
+          ref={fgRef}
+          width={size.width}
+          height={size.height}
+          graphData={graphData}
+          backgroundColor="var(--color-surface)"
+          nodeLabel="label"
+          linkColor={() =>
+            getComputedStyle(document.documentElement).getPropertyValue("--color-text-muted").trim() || "#6e6e73"
           }
-        }}
-      />
+          linkWidth={1.5}
+          nodeRelSize={5}
+          onNodeClick={handleNodeClick}
+          nodeCanvasObject={(
+            node: { x?: number; y?: number; label?: string },
+            ctx: CanvasRenderingContext2D,
+            globalScale: number
+          ) => {
+            const { x = 0, y = 0, label = "" } = node;
+            const fontSize = 12 / globalScale;
+            const styles = getComputedStyle(document.documentElement);
+            const accent = styles.getPropertyValue("--color-accent").trim() || "#0a84ff";
+            const text = styles.getPropertyValue("--color-text").trim() || "#f2f2f7";
+
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = accent;
+            ctx.fill();
+
+            if (globalScale > 0.6) {
+              ctx.font = `${fontSize}px -apple-system, sans-serif`;
+              ctx.fillStyle = text;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "top";
+              ctx.fillText(label, x, y + 7);
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }

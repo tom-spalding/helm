@@ -65,18 +65,13 @@ pub async fn set_vault_path(app: AppHandle, path: String) -> Result<(), String> 
     store.save().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
-    let path = PathBuf::from(&vault_path);
-    if !path.exists() {
-        fs::create_dir_all(&path).map_err(|e| e.to_string())?;
-    }
-
-    let mut notes = Vec::new();
-    for entry in fs::read_dir(&path).map_err(|e| e.to_string())? {
+fn collect_notes(dir: &PathBuf, notes: &mut Vec<NoteFile>) -> Result<(), String> {
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let file_path = entry.path();
-        if file_path.extension().and_then(|e| e.to_str()) == Some("md") {
+        if file_path.is_dir() {
+            collect_notes(&file_path, notes)?;
+        } else if file_path.extension().and_then(|e| e.to_str()) == Some("md") {
             let content = fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
             notes.push(NoteFile {
                 path: file_path.to_string_lossy().to_string(),
@@ -85,6 +80,18 @@ pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
             });
         }
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
+    let path = PathBuf::from(&vault_path);
+    if !path.exists() {
+        fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    }
+
+    let mut notes = Vec::new();
+    collect_notes(&path, &mut notes)?;
     Ok(notes)
 }
 
@@ -148,7 +155,7 @@ pub async fn watch_vault(app: AppHandle, vault_path: String) -> Result<(), Strin
             }
         };
 
-        if let Err(e) = watcher.watch(std::path::Path::new(&vault_path), RecursiveMode::NonRecursive) {
+        if let Err(e) = watcher.watch(std::path::Path::new(&vault_path), RecursiveMode::Recursive) {
             eprintln!("Failed to watch vault: {}", e);
             return;
         }
