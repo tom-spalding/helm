@@ -245,11 +245,10 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       content: note.content,
       editorProps: {
         attributes: {
-          class: "prose outline-none min-h-[300px] text-[var(--color-text)]",
+          class: "prose max-w-none w-full outline-none min-h-[300px] text-[var(--color-text)]",
           style: [
             "font-size: var(--editor-font-size)",
             "line-height: var(--editor-line-height)",
-            "max-width: var(--editor-max-width)",
           ].join("; "),
         },
         handlePaste(view, event) {

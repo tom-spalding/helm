@@ -121,7 +121,7 @@ export function LeftColumn() {
 
   if (collapsed) {
     return (
-      <div className="flex w-10 flex-col border-r border-[var(--color-border)]">
+      <div className="flex w-10 flex-col justify-end border-r border-[var(--color-border)]">
         <button
           onClick={() => setCollapsed(false)}
           className="p-3 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"

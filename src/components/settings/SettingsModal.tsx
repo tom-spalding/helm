@@ -144,15 +144,6 @@ function TypographyTab() {
         unit="em"
         onChange={(lineHeight) => updateSettings({ lineHeight })}
       />
-      <SliderRow
-        label="Line Width"
-        value={settings.lineWidth}
-        min={40}
-        max={100}
-        step={2}
-        unit="ch"
-        onChange={(lineWidth) => updateSettings({ lineWidth })}
-      />
 
       <div className="mt-2 border-t border-[var(--color-border)] pt-4">
         <button
