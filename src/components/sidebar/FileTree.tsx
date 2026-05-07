@@ -5,7 +5,8 @@ import { useUIStore } from "../../store/ui";
 import { buildTree, getAllFolderPaths, type TreeNode } from "../../lib/file-tree";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { tauriCommands } from "../../lib/tauri-commands";
-import { serializeNote } from "../../lib/note-parser";
+import { serializeNote, slugify } from "../../lib/note-parser";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import type { Note, VaultConfig } from "../../types/note";
 
 interface Props {
@@ -43,6 +44,40 @@ function NewFolderInput({ onCommit }: { onCommit: (name: string) => void }) {
   );
 }
 
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const committed = React.useRef(false);
+  return (
+    <input
+      autoFocus
+      defaultValue={initial}
+      className="flex-1 rounded bg-[var(--color-bg)] px-1 text-sm text-[var(--color-text)] outline outline-1 outline-[var(--color-accent)]"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          committed.current = true;
+          onCommit((e.target as HTMLInputElement).value.trim());
+        }
+        if (e.key === "Escape") {
+          committed.current = true;
+          onCancel();
+        }
+        e.stopPropagation();
+      }}
+      onBlur={(e) => {
+        if (!committed.current) onCommit(e.target.value.trim());
+      }}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function FileTree({ notes, vault }: Props) {
@@ -55,12 +90,8 @@ export function FileTree({ notes, vault }: Props) {
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 
   const tree = useMemo(() => buildTree(notes, vault.path), [notes, vault.path]);
-  // allFolders is scaffolded here for use in the "Move to…" context menu (later task)
+  // allFolders is scaffolded here for use in the "Move to…" context menu (Task 8)
   const allFolders = useMemo(() => getAllFolderPaths(tree, vault.path), [tree, vault.path]);
-
-  // Suppress unused-variable warnings for scaffolded state until later tasks wire them up
-  void renamingPath;
-  void setRenamingPath;
   void allFolders;
 
   async function handleCreateNote(folderPath: string) {
@@ -99,6 +130,58 @@ export function FileTree({ notes, vault }: Props) {
     }
   }
 
+  async function handlePinToggle(note: Note) {
+    const updated: Note = {
+      ...note,
+      frontmatter: { ...note.frontmatter, pinned: !note.frontmatter.pinned },
+    };
+    try {
+      await tauriCommands.writeNote(note.filePath, serializeNote(updated));
+      useNoteStore.getState().updateNote(updated);
+    } catch (e) {
+      console.error("Failed to toggle pin:", e);
+    }
+  }
+
+  async function handleRenameNote(note: Note, newTitle: string) {
+    if (!newTitle || newTitle === note.frontmatter.title) {
+      setRenamingPath(null);
+      return;
+    }
+    const folder = note.filePath.split("/").slice(0, -1).join("/");
+    const newFileName = `${slugify(newTitle)}.md`;
+    const newFilePath = `${folder}/${newFileName}`;
+    const updated: Note = {
+      ...note,
+      filePath: newFilePath,
+      fileName: newFileName,
+      frontmatter: { ...note.frontmatter, title: newTitle },
+    };
+    try {
+      await tauriCommands.renameNote(note.filePath, newFilePath);
+      await tauriCommands.writeNote(newFilePath, serializeNote(updated));
+      useNoteStore.getState().updateNote(updated);
+    } catch (e) {
+      console.error("Failed to rename note:", e);
+    }
+    setRenamingPath(null);
+  }
+
+  async function handleDeleteNote(note: Note) {
+    const ok = await confirm(
+      `Delete "${note.frontmatter.title || "Untitled"}"? This cannot be undone.`,
+      { title: "Delete Note", kind: "warning" }
+    );
+    if (!ok) return;
+    if (note.id === selectedNoteId) selectNote(null);
+    useNoteStore.getState().removeNote(note.id);
+    try {
+      await tauriCommands.deleteNote(note.filePath);
+    } catch (e) {
+      console.error("Failed to delete note:", e);
+    }
+  }
+
   function toggleFolder(path: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -122,10 +205,33 @@ export function FileTree({ notes, vault }: Props) {
             ? "bg-[var(--color-surface)] text-[var(--color-text)]"
             : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
         }`}
-        onClick={() => openNote(note)}
+        onClick={() => { if (renamingPath !== note.filePath) openNote(note); }}
         onContextMenu={(e) => {
           e.preventDefault();
-          // context menu wired in Task 6
+          e.stopPropagation();
+          setMenu({
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+              { kind: "action", label: "Open", onClick: () => openNote(note) },
+              {
+                kind: "action",
+                label: "New Note Here",
+                onClick: () => {
+                  const folder = note.filePath.split("/").slice(0, -1).join("/");
+                  handleCreateNote(folder);
+                },
+              },
+              {
+                kind: "action",
+                label: note.frontmatter.pinned ? "Unpin" : "Pin",
+                onClick: () => handlePinToggle(note),
+              },
+              { kind: "action", label: "Rename", onClick: () => setRenamingPath(note.filePath) },
+              { kind: "separator" },
+              { kind: "action", label: "Delete", danger: true, onClick: () => handleDeleteNote(note) },
+            ],
+          });
         }}
       >
         <svg
@@ -139,7 +245,15 @@ export function FileTree({ notes, vault }: Props) {
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
         </svg>
-        <span className="flex-1 truncate">{note.frontmatter.title || note.fileName}</span>
+        {renamingPath === note.filePath ? (
+          <RenameInput
+            initial={note.frontmatter.title}
+            onCommit={(v) => handleRenameNote(note, v)}
+            onCancel={() => setRenamingPath(null)}
+          />
+        ) : (
+          <span className="flex-1 truncate">{note.frontmatter.title || note.fileName}</span>
+        )}
         {note.frontmatter.pinned && (
           <svg
             xmlns="http://www.w3.org/2000/svg"
