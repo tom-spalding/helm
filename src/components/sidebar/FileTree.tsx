@@ -194,7 +194,7 @@ export function FileTree({ notes, vault }: Props) {
         if (n.filePath.startsWith(folderPath + "/")) {
           const updatedNote = {
             ...n,
-            filePath: n.filePath.replace(folderPath, newPath),
+            filePath: newPath + n.filePath.slice(folderPath.length),
           };
           useNoteStore.getState().updateNote(updatedNote);
         }
