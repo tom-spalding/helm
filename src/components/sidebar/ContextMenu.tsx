@@ -14,6 +14,8 @@ interface Props {
 
 const menuCls =
   "fixed z-50 min-w-[160px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-1 shadow-xl";
+const submenuCls =
+  "absolute z-50 min-w-[160px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-1 shadow-xl";
 const itemCls =
   "flex w-full items-center px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-bg)]";
 
@@ -87,7 +89,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
                 <span className="ml-4 text-xs text-[var(--color-text-muted)]">▶</span>
               </button>
               {openSubmenu === i && (
-                <div role="menu" className={`absolute ${submenuPositionCls} top-0 ${menuCls}`}>
+                <div role="menu" className={`${submenuCls} ${submenuPositionCls} top-0`}>
                   {item.items.map((sub, j) => (
                     <button
                       key={j}

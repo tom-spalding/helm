@@ -6,6 +6,11 @@ import { parseNote, serializeNote } from "../lib/note-parser";
 import { useNoteStore } from "../store/notes";
 import type { VaultConfig, Note } from "../types/note";
 
+// Track which vault paths already have a Rust watcher running.
+// Module-level so it survives React StrictMode double-invocation and prevents
+// duplicate watcher threads from accumulating across dev hot-reloads.
+const watchedVaultPaths = new Set<string>();
+
 /**
  * Repair missing required frontmatter fields in all notes in a vault.
  * Only writes files that actually need changes.
@@ -60,12 +65,25 @@ async function repairVaultFrontmatter(vaultPath: string): Promise<void> {
  */
 async function loadVault(vault: VaultConfig): Promise<void> {
   const files = await tauriCommands.listNotes(vault.path);
-  const notes: Note[] = files.map((f) => ({
-    ...parseNote(f.content, f.path),
-    vaultId: vault.id,
-  }));
+  const notes: Note[] = files.map((f) => {
+    const parsed = parseNote(f.content, f.path);
+    // Ensure every note has a unique id — files without frontmatter id get a
+    // temporary in-memory ULID so selectNote / DnD work correctly.
+    const id = parsed.id || ulid();
+    return {
+      ...parsed,
+      id,
+      frontmatter: { ...parsed.frontmatter, id },
+      vaultId: vault.id,
+    };
+  });
   useNoteStore.getState().appendNotes(notes);
-  await tauriCommands.watchVault(vault.path);
+  // Only start one Rust watcher thread per vault path to prevent duplicate
+  // vault-changed events from accumulating across StrictMode runs or HMR.
+  if (!watchedVaultPaths.has(vault.path)) {
+    watchedVaultPaths.add(vault.path);
+    await tauriCommands.watchVault(vault.path);
+  }
 }
 
 /**

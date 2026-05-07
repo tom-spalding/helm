@@ -1,0 +1,53 @@
+import { ulid } from "ulid";
+import { useNoteStore } from "../store/notes";
+import { noteFilePath, serializeNote } from "../lib/note-parser";
+import { tauriCommands } from "../lib/tauri-commands";
+import { useUIStore } from "../store/ui";
+import type { Note } from "../types/note";
+
+export function useCreateNote() {
+  const { vaults, activeVaultId, addNote, selectNote } = useNoteStore();
+  const { setView } = useUIStore();
+
+  const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
+
+  async function createNote() {
+    if (!vault) return;
+
+    const id = ulid();
+    const title = "Untitled";
+    const filePath = noteFilePath(vault.path, `untitled-${id.slice(-8).toLowerCase()}`);
+    const fileName = filePath.split("/").pop()!;
+
+    const note: Note = {
+      id,
+      filePath,
+      fileName,
+      content: "",
+      vaultId: vault.id,
+      frontmatter: {
+        id,
+        title,
+        created: new Date().toISOString().split("T")[0],
+        updated: new Date().toISOString().split("T")[0],
+        tags: [],
+        urgent: false,
+        important: false,
+        state: "Prepare",
+        blocked: false,
+        links: [],
+      },
+    };
+
+    try {
+      await tauriCommands.writeNote(filePath, serializeNote(note));
+      addNote(note);
+      selectNote(id);
+      setView("notes");
+    } catch (e) {
+      console.error("Failed to create note:", e);
+    }
+  }
+
+  return { createNote, canCreate: !!vault };
+}

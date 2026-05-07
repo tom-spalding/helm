@@ -71,8 +71,9 @@ fn collect_folders(dir: &PathBuf, folders: &mut Vec<String>) -> Result<(), Strin
         let path = entry.path();
         if path.is_dir() {
             let name = entry.file_name();
-            if name.to_string_lossy().starts_with('.') {
-                continue; // skip hidden dirs (.git, .DS_Store dirs, etc.)
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with('.') || name_str == "assets" {
+                continue; // skip hidden dirs and the assets directory
             }
             folders.push(path.to_string_lossy().to_string());
             collect_folders(&path, folders)?;

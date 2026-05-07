@@ -132,6 +132,9 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     }),
   addNote: (note) =>
     set((state) => {
+      // Skip if a note with the same filePath is already in the store to prevent
+      // duplicate entries from concurrent watcher callbacks or StrictMode runs.
+      if (state.notes.some((n) => n.filePath === note.filePath)) return state;
       const notes = [...state.notes, note];
       return { notes, tagTree: buildTagTree(notes) };
     }),

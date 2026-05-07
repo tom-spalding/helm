@@ -5,6 +5,9 @@ import {
   DragEndEvent,
   useDraggable,
   useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { useNoteStore } from "../../store/notes";
 import { useUIStore } from "../../store/ui";
@@ -105,7 +108,7 @@ function NoteItem({
   onRenameCancel: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: note.id,
+    id: note.filePath, // filePaths are always unique; note.id can be empty
     data: { note },
   });
 
@@ -227,7 +230,10 @@ type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 export function FileTree({ notes, vault }: Props) {
   const { selectedNoteId, selectNote, knownFolderPaths } = useNoteStore();
   const { setView } = useUIStore();
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>(null);
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
@@ -349,8 +355,8 @@ export function FileTree({ notes, vault }: Props) {
           useNoteStore.getState().updateNote(updatedNote);
         }
       }
-      // Update expanded set: replace old path with new path
-      setExpanded((prev) => {
+      // Update collapsed set: replace old path with new path (preserving collapsed state)
+      setCollapsed((prev) => {
         const next = new Set(prev);
         if (next.has(folderPath)) { next.delete(folderPath); next.add(newPath); }
         return next;
@@ -407,7 +413,7 @@ export function FileTree({ notes, vault }: Props) {
   }
 
   function toggleFolder(path: string) {
-    setExpanded((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       next.has(path) ? next.delete(path) : next.add(path);
       return next;
@@ -471,7 +477,7 @@ export function FileTree({ notes, vault }: Props) {
 
   // Thin wrapper — FolderItem is a proper component so useDroppable works inside it.
   function renderFolder(node: Extract<TreeNode, { kind: "folder" }>, depth: number) {
-    const isOpen = expanded.has(node.path);
+    const isOpen = !collapsed.has(node.path);
     return (
       <FolderItem
         node={node}
@@ -491,7 +497,11 @@ export function FileTree({ notes, vault }: Props) {
                 kind: "action",
                 label: "New Subfolder",
                 onClick: () => {
-                  setExpanded((prev) => new Set([...prev, node.path]));
+                  setCollapsed((prev) => {
+                    const next = new Set(prev);
+                    next.delete(node.path); // ensure parent is open
+                    return next;
+                  });
                   setNewFolderParent(node.path);
                 },
               },
@@ -537,14 +547,14 @@ export function FileTree({ notes, vault }: Props) {
       );
     }
     return (
-      <React.Fragment key={node.note.id}>
+      <React.Fragment key={node.note.filePath}>
         {renderNote(node.note, depth)}
       </React.Fragment>
     );
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="relative flex flex-col min-h-0 h-full">
         {/* Toolbar — New Note and New Folder buttons */}
         <div className="flex items-center justify-between px-2 py-1.5 border-b border-[var(--color-border)]">

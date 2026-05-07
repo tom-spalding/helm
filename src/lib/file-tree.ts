@@ -60,9 +60,13 @@ export function buildTree(
   function buildChildren(folderPath: string): TreeNode[] {
     const directNotes = byFolder.get(folderPath) ?? [];
     const noteNodes: TreeNode[] = [...directNotes]
-      .sort((a, b) =>
-        a.frontmatter.title.localeCompare(b.frontmatter.title)
-      )
+      .sort((a, b) => {
+        // Pinned notes float to the top; within each group sort alphabetically
+        const pinA = a.frontmatter.pinned ? 0 : 1;
+        const pinB = b.frontmatter.pinned ? 0 : 1;
+        if (pinA !== pinB) return pinA - pinB;
+        return a.frontmatter.title.localeCompare(b.frontmatter.title);
+      })
       .map((note) => ({ kind: "note" as const, note }));
 
     // Find direct subfolders: keys in byFolder that are exactly one segment deeper
