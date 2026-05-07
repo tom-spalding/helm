@@ -90,9 +90,7 @@ export function FileTree({ notes, vault }: Props) {
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 
   const tree = useMemo(() => buildTree(notes, vault.path), [notes, vault.path]);
-  // allFolders is scaffolded here for use in the "Move to…" context menu (Task 8)
   const allFolders = useMemo(() => getAllFolderPaths(tree, vault.path), [tree, vault.path]);
-  void allFolders;
 
   async function handleCreateNote(folderPath: string) {
     const id = ulid();
@@ -233,6 +231,17 @@ export function FileTree({ notes, vault }: Props) {
     }
   }
 
+  async function handleMoveNote(note: Note, targetFolderPath: string) {
+    const newFilePath = `${targetFolderPath}/${note.fileName}`;
+    if (newFilePath === note.filePath) return;
+    try {
+      await tauriCommands.renameNote(note.filePath, newFilePath);
+      useNoteStore.getState().updateNote({ ...note, filePath: newFilePath });
+    } catch (e) {
+      console.error("Failed to move note:", e);
+    }
+  }
+
   function toggleFolder(path: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -279,6 +288,14 @@ export function FileTree({ notes, vault }: Props) {
                 onClick: () => handlePinToggle(note),
               },
               { kind: "action", label: "Rename", onClick: () => setRenamingPath(note.filePath) },
+              {
+                kind: "submenu",
+                label: "Move to…",
+                items: allFolders.map((folder) => ({
+                  label: folder.label,
+                  onClick: () => handleMoveNote(note, folder.path),
+                })),
+              },
               { kind: "separator" },
               { kind: "action", label: "Delete", danger: true, onClick: () => handleDeleteNote(note) },
             ],
