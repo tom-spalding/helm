@@ -1,5 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { ulid } from "ulid";
+import {
+  DndContext,
+  DragEndEvent,
+  useDraggable,
+  useDroppable,
+} from "@dnd-kit/core";
 import { useNoteStore } from "../../store/notes";
 import { useUIStore } from "../../store/ui";
 import { buildTree, getAllFolderPaths, type TreeNode } from "../../lib/file-tree";
@@ -78,13 +84,150 @@ function RenameInput({
   );
 }
 
+// Standalone component so useDraggable can be called as a proper React hook.
+function NoteItem({
+  note,
+  depth,
+  isSelected,
+  isRenaming,
+  onOpen,
+  onContextMenu,
+  onRenameCommit,
+  onRenameCancel,
+}: {
+  note: Note;
+  depth: number;
+  isSelected: boolean;
+  isRenaming: boolean;
+  onOpen: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onRenameCommit: (v: string) => void;
+  onRenameCancel: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: note.id,
+    data: { note },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{ paddingLeft: depth * 12 + 8, opacity: isDragging ? 0.4 : 1 }}
+      className={`group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors cursor-pointer ${
+        isSelected
+          ? "bg-[var(--color-surface)] text-[var(--color-text)]"
+          : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+      }`}
+      onClick={() => { if (!isRenaming) onOpen(); }}
+      onContextMenu={onContextMenu}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+      {isRenaming ? (
+        <RenameInput initial={note.frontmatter.title} onCommit={onRenameCommit} onCancel={onRenameCancel} />
+      ) : (
+        <span className="flex-1 truncate">{note.frontmatter.title || note.fileName}</span>
+      )}
+      {note.frontmatter.pinned && !isRenaming && (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 shrink-0 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="12" y1="17" x2="12" y2="22" />
+          <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+// Standalone component so useDroppable can be called as a proper React hook.
+function FolderItem({
+  node,
+  depth,
+  isOpen,
+  isRenaming,
+  onToggle,
+  onContextMenu,
+  onRenameCommit,
+  onRenameCancel,
+  children,
+}: {
+  node: Extract<TreeNode, { kind: "folder" }>;
+  depth: number;
+  isOpen: boolean;
+  isRenaming: boolean;
+  onToggle: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onRenameCommit: (v: string) => void;
+  onRenameCancel: () => void;
+  children?: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `folder-${node.path}`,
+    data: { folderPath: node.path },
+  });
+
+  return (
+    <div ref={setNodeRef}>
+      <div
+        style={{ paddingLeft: depth * 12 + 8 }}
+        className={`group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm cursor-pointer transition-colors ${
+          isOver
+            ? "bg-[var(--color-accent)] text-white"
+            : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+        }`}
+        onClick={onToggle}
+        onContextMenu={onContextMenu}
+      >
+        {/* Chevron rotates 90° when the folder is open */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </svg>
+        {isRenaming ? (
+          <RenameInput initial={node.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
+        ) : (
+          <span className="flex-1 truncate">{node.name}</span>
+        )}
+      </div>
+      {isOpen && children}
+    </div>
+  );
+}
+
+// Drop target for the vault root — dropping here moves a note out of any subfolder.
+function VaultRootDrop({ vaultPath, children }: { vaultPath: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `folder-${vaultPath}`,
+    data: { folderPath: vaultPath },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 overflow-y-auto py-1 min-h-0 rounded transition-colors ${isOver ? "ring-1 ring-[var(--color-accent)]" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function FileTree({ notes, vault }: Props) {
   const { selectedNoteId, selectNote } = useNoteStore();
   const { setView } = useUIStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // renamingPath is scaffolded here; wired in a later task
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>(null);
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
@@ -242,6 +385,18 @@ export function FileTree({ notes, vault }: Props) {
     }
   }
 
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const note = active.data.current?.note as Note | undefined;
+    const targetFolderPath = over.data.current?.folderPath as string | undefined;
+    if (!note || !targetFolderPath) return;
+    // Avoid a no-op move when the note is already in the target folder
+    const currentFolder = note.filePath.split("/").slice(0, -1).join("/");
+    if (currentFolder === targetFolderPath) return;
+    await handleMoveNote(note, targetFolderPath);
+  }
+
   function toggleFolder(path: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -255,17 +410,15 @@ export function FileTree({ notes, vault }: Props) {
     setView("notes");
   }
 
+  // Thin wrapper — NoteItem is a proper component so useDraggable works inside it.
   function renderNote(note: Note, depth: number) {
-    const isSelected = note.id === selectedNoteId;
     return (
-      <div
-        style={{ paddingLeft: depth * 12 + 8 }}
-        className={`group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors cursor-pointer ${
-          isSelected
-            ? "bg-[var(--color-surface)] text-[var(--color-text)]"
-            : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
-        }`}
-        onClick={() => { if (renamingPath !== note.filePath) openNote(note); }}
+      <NoteItem
+        note={note}
+        depth={depth}
+        isSelected={note.id === selectedNoteId}
+        isRenaming={renamingPath === note.filePath}
+        onOpen={() => openNote(note)}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -290,10 +443,10 @@ export function FileTree({ notes, vault }: Props) {
               { kind: "action", label: "Rename", onClick: () => setRenamingPath(note.filePath) },
               {
                 kind: "submenu",
-                label: "Move to…",
-                items: allFolders.map((folder) => ({
-                  label: folder.label,
-                  onClick: () => handleMoveNote(note, folder.path),
+                label: "Move to\u2026",
+                items: allFolders.map((f) => ({
+                  label: f.label,
+                  onClick: () => handleMoveNote(note, f.path),
                 })),
               },
               { kind: "separator" },
@@ -301,134 +454,68 @@ export function FileTree({ notes, vault }: Props) {
             ],
           });
         }}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-3.5 w-3.5 shrink-0 opacity-50"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-        {renamingPath === note.filePath ? (
-          <RenameInput
-            initial={note.frontmatter.title}
-            onCommit={(v) => handleRenameNote(note, v)}
-            onCancel={() => setRenamingPath(null)}
-          />
-        ) : (
-          <span className="flex-1 truncate">{note.frontmatter.title || note.fileName}</span>
-        )}
-        {note.frontmatter.pinned && (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-3 w-3 shrink-0 opacity-40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <line x1="12" y1="17" x2="12" y2="22" />
-            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-          </svg>
-        )}
-      </div>
+        onRenameCommit={(v) => handleRenameNote(note, v)}
+        onRenameCancel={() => setRenamingPath(null)}
+      />
     );
   }
 
-  function renderFolder(
-    node: Extract<TreeNode, { kind: "folder" }>,
-    depth: number
-  ) {
+  // Thin wrapper — FolderItem is a proper component so useDroppable works inside it.
+  function renderFolder(node: Extract<TreeNode, { kind: "folder" }>, depth: number) {
     const isOpen = expanded.has(node.path);
     return (
-      <div>
-        <div
-          style={{ paddingLeft: depth * 12 + 8 }}
-          className="group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] cursor-pointer transition-colors"
-          onClick={() => toggleFolder(node.path)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setMenu({
-              x: e.clientX,
-              y: e.clientY,
-              items: [
-                { kind: "action", label: "New Note Here", onClick: () => handleCreateNote(node.path) },
-                {
-                  kind: "action",
-                  label: "New Subfolder",
-                  onClick: () => {
-                    setExpanded((prev) => new Set([...prev, node.path]));
-                    setNewFolderParent(node.path);
-                  },
+      <FolderItem
+        node={node}
+        depth={depth}
+        isOpen={isOpen}
+        isRenaming={renamingPath === node.path}
+        onToggle={() => toggleFolder(node.path)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenu({
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+              { kind: "action", label: "New Note Here", onClick: () => handleCreateNote(node.path) },
+              {
+                kind: "action",
+                label: "New Subfolder",
+                onClick: () => {
+                  setExpanded((prev) => new Set([...prev, node.path]));
+                  setNewFolderParent(node.path);
                 },
-                { kind: "action", label: "Rename", onClick: () => setRenamingPath(node.path) },
-                { kind: "separator" },
-                {
-                  kind: "action",
-                  label: "Delete",
-                  danger: true,
-                  onClick: () => handleDeleteFolder(node.path),
-                },
-              ],
-            });
-          }}
-        >
-          {/* Chevron rotates 90° when the folder is open */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-3.5 w-3.5 shrink-0 opacity-60"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-          {renamingPath === node.path ? (
-            <RenameInput
-              initial={node.name}
-              onCommit={(v) => handleRenameFolder(node.path, v)}
-              onCancel={() => setRenamingPath(null)}
-            />
-          ) : (
-            <span className="flex-1 truncate">{node.name}</span>
-          )}
-        </div>
-        {isOpen && (
-          <>
-            {newFolderParent === node.path && (
-              <NewFolderInput
-                onCommit={async (name) => {
-                  if (name) {
-                    try {
-                      await tauriCommands.createFolder(`${node.path}/${name}`);
-                    } catch (e) {
-                      console.error("Failed to create folder:", e);
-                    }
-                  }
-                  setNewFolderParent(null);
-                }}
-              />
-            )}
-            {node.children.map((child) => renderNode(child, depth + 1))}
-          </>
+              },
+              { kind: "action", label: "Rename", onClick: () => setRenamingPath(node.path) },
+              { kind: "separator" },
+              {
+                kind: "action",
+                label: "Delete",
+                danger: true,
+                onClick: () => handleDeleteFolder(node.path),
+              },
+            ],
+          });
+        }}
+        onRenameCommit={(v) => handleRenameFolder(node.path, v)}
+        onRenameCancel={() => setRenamingPath(null)}
+      >
+        {newFolderParent === node.path && (
+          <NewFolderInput
+            onCommit={async (name) => {
+              if (name) {
+                try {
+                  await tauriCommands.createFolder(`${node.path}/${name}`);
+                } catch (e) {
+                  console.error("Failed to create folder:", e);
+                }
+              }
+              setNewFolderParent(null);
+            }}
+          />
         )}
-      </div>
+        {node.children.map((child) => renderNode(child, depth + 1))}
+      </FolderItem>
     );
   }
 
@@ -448,84 +535,86 @@ export function FileTree({ notes, vault }: Props) {
   }
 
   return (
-    <div className="relative flex flex-col min-h-0 h-full">
-      {/* Toolbar — New Note and New Folder buttons wired in Task 5 */}
-      <div className="flex items-center justify-between px-2 py-1.5 border-b border-[var(--color-border)]">
-        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] opacity-60">
-          Files
-        </span>
-        <div className="flex gap-2">
-          <button
-            title="New Note"
-            className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
-            onClick={() => handleCreateNote(vault.path)}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-3.5 w-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+    <DndContext onDragEnd={handleDragEnd}>
+      <div className="relative flex flex-col min-h-0 h-full">
+        {/* Toolbar — New Note and New Folder buttons */}
+        <div className="flex items-center justify-between px-2 py-1.5 border-b border-[var(--color-border)]">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] opacity-60">
+            Files
+          </span>
+          <div className="flex gap-2">
+            <button
+              title="New Note"
+              className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
+              onClick={() => handleCreateNote(vault.path)}
             >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
-          </button>
-          <button
-            title="New Folder"
-            className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
-            onClick={() => setNewFolderParent(vault.path)}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-3.5 w-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="12" y1="18" x2="12" y2="12" />
+                <line x1="9" y1="15" x2="15" y2="15" />
+              </svg>
+            </button>
+            <button
+              title="New Folder"
+              className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
+              onClick={() => setNewFolderParent(vault.path)}
             >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <line x1="12" y1="11" x2="12" y2="17" />
-              <line x1="9" y1="14" x2="15" y2="14" />
-            </svg>
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <line x1="12" y1="11" x2="12" y2="17" />
+                <line x1="9" y1="14" x2="15" y2="14" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto py-1 min-h-0">
-        {tree.length === 0 && (
-          <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No notes</p>
-        )}
-        {newFolderParent === vault.path && (
-          <NewFolderInput
-            onCommit={async (name) => {
-              if (name) {
-                try {
-                  await tauriCommands.createFolder(`${vault.path}/${name}`);
-                } catch (e) {
-                  console.error("Failed to create folder:", e);
+        <VaultRootDrop vaultPath={vault.path}>
+          {newFolderParent === vault.path && (
+            <NewFolderInput
+              onCommit={async (name) => {
+                if (name) {
+                  try {
+                    await tauriCommands.createFolder(`${vault.path}/${name}`);
+                  } catch (e) {
+                    console.error("Failed to create folder:", e);
+                  }
                 }
-              }
-              setNewFolderParent(null);
-            }}
+                setNewFolderParent(null);
+              }}
+            />
+          )}
+          {tree.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No notes</p>
+          ) : (
+            tree.map((node) => renderNode(node))
+          )}
+        </VaultRootDrop>
+
+        {/* Context Menu — rendered at fixed position within this container */}
+        {menu && (
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={menu.items}
+            onClose={() => setMenu(null)}
           />
         )}
-        {tree.map((node) => renderNode(node))}
       </div>
-
-      {/* Context Menu — rendered at portal-like fixed position within this container */}
-      {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={menu.items}
-          onClose={() => setMenu(null)}
-        />
-      )}
-    </div>
+    </DndContext>
   );
 }
