@@ -69,6 +69,17 @@ async function loadVault(vault: VaultConfig): Promise<void> {
 }
 
 /**
+ * Refresh the known folder list across all vaults in the store.
+ */
+async function refreshFolders(vaults: VaultConfig[]): Promise<void> {
+  const results = await Promise.all(
+    vaults.map((v) => tauriCommands.listFolders(v.path).catch(() => [] as string[]))
+  );
+  const allPaths = results.flat();
+  useNoteStore.getState().setKnownFolderPaths(allPaths);
+}
+
+/**
  * Add a new vault: repair its frontmatter, persist config, load notes, start watcher.
  */
 export async function addVault(path: string): Promise<void> {
@@ -115,6 +126,7 @@ export function useVault() {
   useEffect(() => {
     let unlistenChanged: (() => void) | undefined;
     let unlistenDeleted: (() => void) | undefined;
+    let unlistenDirs: (() => void) | undefined;
 
     async function init() {
       try {
@@ -134,6 +146,7 @@ export function useVault() {
         useNoteStore.getState().setVaults(vaults);
         if (vaults.length > 0) {
           await Promise.all(vaults.map(loadVault));
+          await refreshFolders(vaults);
         }
 
         // Listen for file creates/modifications
@@ -161,6 +174,12 @@ export function useVault() {
           }
         });
 
+        // Listen for directory create/remove events — refresh the folder list
+        unlistenDirs = await listen<string>("vault-dirs-changed", () => {
+          const { vaults: currentVaults } = useNoteStore.getState();
+          refreshFolders(currentVaults);
+        });
+
         // Listen for confirmed file deletions
         unlistenDeleted = await listen<string[]>("vault-note-deleted", (event) => {
           const deletedPaths = event.payload;
@@ -184,6 +203,7 @@ export function useVault() {
     return () => {
       unlistenChanged?.();
       unlistenDeleted?.();
+      unlistenDirs?.();
     };
   }, []);
 

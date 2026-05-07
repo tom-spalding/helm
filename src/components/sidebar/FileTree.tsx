@@ -225,14 +225,23 @@ function VaultRootDrop({ vaultPath, children }: { vaultPath: string; children: R
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function FileTree({ notes, vault }: Props) {
-  const { selectedNoteId, selectNote } = useNoteStore();
+  const { selectedNoteId, selectNote, knownFolderPaths } = useNoteStore();
   const { setView } = useUIStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>(null);
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 
-  const tree = useMemo(() => buildTree(notes, vault.path), [notes, vault.path]);
+  // Only pass folder paths that belong to this vault
+  const vaultFolderPaths = useMemo(
+    () => knownFolderPaths.filter((fp) => fp.startsWith(vault.path + "/")),
+    [knownFolderPaths, vault.path]
+  );
+
+  const tree = useMemo(
+    () => buildTree(notes, vault.path, vaultFolderPaths),
+    [notes, vault.path, vaultFolderPaths]
+  );
   const allFolders = useMemo(() => getAllFolderPaths(tree, vault.path), [tree, vault.path]);
 
   async function handleCreateNote(folderPath: string) {

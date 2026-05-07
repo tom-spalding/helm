@@ -66,6 +66,8 @@ interface NoteStore {
   searchQuery: string;
   /** Notes matching the current search query */
   searchResults: Note[];
+  /** All known folder paths across all vaults (includes empty folders) */
+  knownFolderPaths: string[];
 
   /** Replace all notes and rebuild indexes */
   setNotes: (notes: Note[]) => void;
@@ -89,6 +91,8 @@ interface NoteStore {
   removeNote: (id: string) => void;
   /** Search for notes matching a query (rebuilds search index if needed) */
   search: (query: string) => void;
+  /** Replace the known folder paths (called on vault load and dir change events) */
+  setKnownFolderPaths: (paths: string[]) => void;
 }
 
 /**
@@ -104,6 +108,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
   searchIndex: null,
   searchQuery: "",
   searchResults: [],
+  knownFolderPaths: [],
 
   setNotes: (notes) => {
     const searchIndex = buildIndex(notes);
@@ -144,4 +149,5 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     const results = searchNotes(searchIndex, notes, query);
     set({ searchQuery: query, searchResults: results });
   },
+  setKnownFolderPaths: (paths) => set({ knownFolderPaths: paths }),
 }));

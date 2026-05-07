@@ -65,6 +65,33 @@ pub async fn set_vault_path(app: AppHandle, path: String) -> Result<(), String> 
     store.save().map_err(|e| e.to_string())
 }
 
+fn collect_folders(dir: &PathBuf, folders: &mut Vec<String>) -> Result<(), String> {
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            let name = entry.file_name();
+            if name.to_string_lossy().starts_with('.') {
+                continue; // skip hidden dirs (.git, .DS_Store dirs, etc.)
+            }
+            folders.push(path.to_string_lossy().to_string());
+            collect_folders(&path, folders)?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_folders(vault_path: String) -> Result<Vec<String>, String> {
+    let path = validate_path(&vault_path)?;
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let mut folders = Vec::new();
+    collect_folders(&path, &mut folders)?;
+    Ok(folders)
+}
+
 fn collect_notes(dir: &PathBuf, notes: &mut Vec<NoteFile>) -> Result<(), String> {
     for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
@@ -141,6 +168,25 @@ pub async fn rename_note(old_path: String, new_path: String) -> Result<(), Strin
 }
 
 #[tauri::command]
+pub async fn create_folder(path: String) -> Result<(), String> {
+    let p = validate_path(&path)?;
+    fs::create_dir_all(&p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_folder(path: String) -> Result<(), String> {
+    let p = validate_path(&path)?;
+    fs::remove_dir_all(&p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn rename_folder(old_path: String, new_path: String) -> Result<(), String> {
+    let old = validate_path(&old_path)?;
+    let new_p = validate_path(&new_path)?;
+    fs::rename(&old, &new_p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn watch_vault(app: AppHandle, vault_path: String) -> Result<(), String> {
     let app_clone = app.clone();
 
@@ -168,13 +214,23 @@ pub async fn watch_vault(app: AppHandle, vault_path: String) -> Result<(), Strin
                     .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("md"))
                     .map(|p| p.to_string_lossy().to_string())
                     .collect();
-                if md_paths.is_empty() {
-                    continue;
+                if !md_paths.is_empty() {
+                    if matches!(event.kind, notify::EventKind::Remove(_)) {
+                        let _ = app_clone.emit("vault-note-deleted", &md_paths);
+                    } else {
+                        let _ = app_clone.emit("vault-changed", &md_paths);
+                    }
                 }
-                if matches!(event.kind, notify::EventKind::Remove(_)) {
-                    let _ = app_clone.emit("vault-note-deleted", md_paths);
-                } else {
-                    let _ = app_clone.emit("vault-changed", md_paths);
+
+                // Emit for directory create/remove so the frontend refreshes its folder list
+                let has_dir_event = event.paths.iter().any(|p| p.is_dir())
+                    || matches!(
+                        event.kind,
+                        notify::EventKind::Create(notify::event::CreateKind::Folder)
+                            | notify::EventKind::Remove(notify::event::RemoveKind::Folder)
+                    );
+                if has_dir_event {
+                    let _ = app_clone.emit("vault-dirs-changed", &vault_path);
                 }
             }
         }

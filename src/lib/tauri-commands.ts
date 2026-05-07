@@ -44,4 +44,16 @@ export const tauriCommands = {
 
   writeAsset: (vaultPath: string, filename: string, data: number[]): Promise<string> =>
     invoke("write_asset", { vaultPath, filename, data }),
+
+  listFolders: (vaultPath: string): Promise<string[]> =>
+    invoke("list_folders", { vaultPath }),
+
+  createFolder: (path: string): Promise<void> =>
+    invoke("create_folder", { path }),
+
+  deleteFolder: (path: string): Promise<void> =>
+    invoke("delete_folder", { path }),
+
+  renameFolder: (oldPath: string, newPath: string): Promise<void> =>
+    invoke("rename_folder", { oldPath, newPath }),
 };

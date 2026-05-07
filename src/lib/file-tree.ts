@@ -7,14 +7,35 @@ export type TreeNode =
 /**
  * Build a folder-based tree from a flat array of notes.
  * Folders sort before notes; notes sort alphabetically by title.
+ * Pass extraFolderPaths to make empty folders (with no notes) visible.
  */
-export function buildTree(notes: Note[], vaultPath: string): TreeNode[] {
+export function buildTree(
+  notes: Note[],
+  vaultPath: string,
+  extraFolderPaths: string[] = []
+): TreeNode[] {
   const vault = vaultPath.replace(/\/+$/, "");
 
   // Map folderPath -> notes directly inside that folder
   // Also registers all intermediate folder paths (even if empty) so subfolder
   // detection works correctly for deeply nested notes.
   const byFolder = new Map<string, Note[]>();
+
+  // Seed with known folder paths so empty folders are visible in the tree
+  for (const fp of extraFolderPaths) {
+    const normalized = fp.replace(/\/+$/, "");
+    if (normalized === vault) continue;
+    // Register the folder itself and all its ancestors
+    if (normalized.startsWith(vault + "/")) {
+      const rel = normalized.slice(vault.length + 1);
+      const parts = rel.split("/");
+      for (let i = 1; i <= parts.length; i++) {
+        const ancestor = `${vault}/${parts.slice(0, i).join("/")}`;
+        if (!byFolder.has(ancestor)) byFolder.set(ancestor, []);
+      }
+    }
+  }
+
   for (const note of notes) {
     const rel = note.filePath.startsWith(vault + "/")
       ? note.filePath.slice(vault.length + 1)

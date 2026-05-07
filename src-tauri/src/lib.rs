@@ -1,7 +1,7 @@
 mod vault;
 use vault::*;
 use tauri::Emitter;
-use tauri::menu::{MenuItemBuilder, SubmenuBuilder, MenuBuilder};
+use tauri::menu::{MenuItemBuilder, SubmenuBuilder, MenuBuilder, PredefinedMenuItem};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -9,6 +9,28 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            let new_note_item = MenuItemBuilder::new("New Note")
+                .id("new_note")
+                .accelerator("CmdOrCtrl+N")
+                .build(app)?;
+
+            let file_menu = SubmenuBuilder::new(app, "File")
+                .item(&new_note_item)
+                .separator()
+                .item(&PredefinedMenuItem::close_window(app, None)?)
+                .item(&PredefinedMenuItem::quit(app, None)?)
+                .build()?;
+
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .item(&PredefinedMenuItem::undo(app, None)?)
+                .item(&PredefinedMenuItem::redo(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::cut(app, None)?)
+                .item(&PredefinedMenuItem::copy(app, None)?)
+                .item(&PredefinedMenuItem::paste(app, None)?)
+                .item(&PredefinedMenuItem::select_all(app, None)?)
+                .build()?;
+
             let mcp_setup_item = MenuItemBuilder::new("MCP Setup")
                 .id("mcp_setup")
                 .build(app)?;
@@ -18,6 +40,8 @@ pub fn run() {
                 .build()?;
 
             let menu = MenuBuilder::new(app)
+                .item(&file_menu)
+                .item(&edit_menu)
                 .item(&help_menu)
                 .build()?;
 
@@ -25,8 +49,10 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
             app.on_menu_event(move |_app, event| {
-                if event.id().as_ref() == "mcp_setup" {
-                    let _ = app_handle.emit("show-mcp-setup", ());
+                match event.id().as_ref() {
+                    "new_note" => { let _ = app_handle.emit("new-note", ()); }
+                    "mcp_setup" => { let _ = app_handle.emit("show-mcp-setup", ()); }
+                    _ => {}
                 }
             });
 
@@ -44,6 +70,10 @@ pub fn run() {
             rename_note,
             watch_vault,
             write_asset,
+            list_folders,
+            create_folder,
+            delete_folder,
+            rename_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
