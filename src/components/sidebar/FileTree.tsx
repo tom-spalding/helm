@@ -182,6 +182,57 @@ export function FileTree({ notes, vault }: Props) {
     }
   }
 
+  async function handleRenameFolder(folderPath: string, newName: string) {
+    if (!newName) { setRenamingPath(null); return; }
+    const parent = folderPath.split("/").slice(0, -1).join("/");
+    const newPath = `${parent}/${newName}`;
+    try {
+      await tauriCommands.renameFolder(folderPath, newPath);
+      // Update filePaths of all affected notes in the store
+      const { notes: allNotes } = useNoteStore.getState();
+      for (const n of allNotes) {
+        if (n.filePath.startsWith(folderPath + "/")) {
+          const updatedNote = {
+            ...n,
+            filePath: n.filePath.replace(folderPath, newPath),
+          };
+          useNoteStore.getState().updateNote(updatedNote);
+        }
+      }
+      // Update expanded set: replace old path with new path
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(folderPath)) { next.delete(folderPath); next.add(newPath); }
+        return next;
+      });
+    } catch (e) {
+      console.error("Failed to rename folder:", e);
+    }
+    setRenamingPath(null);
+  }
+
+  async function handleDeleteFolder(folderPath: string) {
+    const name = folderPath.split("/").pop();
+    const ok = await confirm(
+      `Delete folder "${name}" and all its contents? This cannot be undone.`,
+      { title: "Delete Folder", kind: "warning" }
+    );
+    if (!ok) return;
+    // Remove notes in this folder from store
+    const { notes: allNotes } = useNoteStore.getState();
+    for (const n of allNotes) {
+      if (n.filePath.startsWith(folderPath + "/")) {
+        if (n.id === selectedNoteId) selectNote(null);
+        useNoteStore.getState().removeNote(n.id);
+      }
+    }
+    try {
+      await tauriCommands.deleteFolder(folderPath);
+    } catch (e) {
+      console.error("Failed to delete folder:", e);
+    }
+  }
+
   function toggleFolder(path: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -284,7 +335,30 @@ export function FileTree({ notes, vault }: Props) {
           onClick={() => toggleFolder(node.path)}
           onContextMenu={(e) => {
             e.preventDefault();
-            // context menu wired in Task 7
+            e.stopPropagation();
+            setMenu({
+              x: e.clientX,
+              y: e.clientY,
+              items: [
+                { kind: "action", label: "New Note Here", onClick: () => handleCreateNote(node.path) },
+                {
+                  kind: "action",
+                  label: "New Subfolder",
+                  onClick: () => {
+                    setExpanded((prev) => new Set([...prev, node.path]));
+                    setNewFolderParent(node.path);
+                  },
+                },
+                { kind: "action", label: "Rename", onClick: () => setRenamingPath(node.path) },
+                { kind: "separator" },
+                {
+                  kind: "action",
+                  label: "Delete",
+                  danger: true,
+                  onClick: () => handleDeleteFolder(node.path),
+                },
+              ],
+            });
           }}
         >
           {/* Chevron rotates 90° when the folder is open */}
@@ -308,9 +382,35 @@ export function FileTree({ notes, vault }: Props) {
           >
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
-          <span className="flex-1 truncate">{node.name}</span>
+          {renamingPath === node.path ? (
+            <RenameInput
+              initial={node.name}
+              onCommit={(v) => handleRenameFolder(node.path, v)}
+              onCancel={() => setRenamingPath(null)}
+            />
+          ) : (
+            <span className="flex-1 truncate">{node.name}</span>
+          )}
         </div>
-        {isOpen && node.children.map((child) => renderNode(child, depth + 1))}
+        {isOpen && (
+          <>
+            {newFolderParent === node.path && (
+              <NewFolderInput
+                onCommit={async (name) => {
+                  if (name) {
+                    try {
+                      await tauriCommands.createFolder(`${node.path}/${name}`);
+                    } catch (e) {
+                      console.error("Failed to create folder:", e);
+                    }
+                  }
+                  setNewFolderParent(null);
+                }}
+              />
+            )}
+            {node.children.map((child) => renderNode(child, depth + 1))}
+          </>
+        )}
       </div>
     );
   }
