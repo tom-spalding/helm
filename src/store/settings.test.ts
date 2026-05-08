@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useSettingsStore } from "./settings";
 import { DEFAULT_SETTINGS } from "../lib/settings";
