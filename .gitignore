@@ -16,6 +16,7 @@ dist-ssr
 .superpowers/
 
 sign.sh
+releases/**/*.app
 
 # Editor directories and files
 .vscode/*

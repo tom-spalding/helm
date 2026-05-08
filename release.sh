@@ -62,5 +62,16 @@ echo "→ Building..."
 
 npm run tauri build
 
+# Copy DMG to releases/ and commit
+RELEASE_DIR="releases/v$NEW_VERSION"
+mkdir -p "$RELEASE_DIR"
+cp src-tauri/target/release/bundle/dmg/Helm_${NEW_VERSION}_aarch64.dmg "$RELEASE_DIR/" 2>/dev/null || true
+cp -r src-tauri/target/release/bundle/macos/Helm.app "$RELEASE_DIR/" 2>/dev/null || true
+
+git add "$RELEASE_DIR/Helm_${NEW_VERSION}_aarch64.dmg"
+git commit -m "release: add Helm_${NEW_VERSION}_aarch64.dmg"
+
 echo ""
-echo "✓ v$NEW_VERSION released — run 'git push && git push --tags' to publish"
+echo "✓ v$NEW_VERSION released"
+echo "  Artifacts: $RELEASE_DIR"
+echo "  Run 'git push && git push --tags' to publish"
