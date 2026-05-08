@@ -28,7 +28,7 @@ echo "→ Bumping to $NEW_VERSION"
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" src-tauri/tauri.conf.json
 
 # Sync Cargo.toml (first occurrence — the [package] version)
-sed -i '' "0,/^version = \".*\"/{s/^version = \".*\"/version = \"$NEW_VERSION\"/}" src-tauri/Cargo.toml
+awk -v ver="$NEW_VERSION" 'done { print; next } /^version = "/ { sub(/^version = ".*"/, "version = \"" ver "\""); done=1 } { print }' src-tauri/Cargo.toml > src-tauri/Cargo.toml.tmp && mv src-tauri/Cargo.toml.tmp src-tauri/Cargo.toml
 
 # Generate changelog from commits since last tag
 LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
