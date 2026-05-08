@@ -12,7 +12,7 @@ export type TreeNode =
 export function buildTree(
   notes: Note[],
   vaultPath: string,
-  extraFolderPaths: string[] = []
+  extraFolderPaths: string[] = [],
 ): TreeNode[] {
   const vault = vaultPath.replace(/\/+$/, "");
 
@@ -26,7 +26,7 @@ export function buildTree(
     const normalized = fp.replace(/\/+$/, "");
     if (normalized === vault) continue;
     // Register the folder itself and all its ancestors
-    if (normalized.startsWith(vault + "/")) {
+    if (normalized.startsWith(`${vault}/`)) {
       const rel = normalized.slice(vault.length + 1);
       const parts = rel.split("/");
       for (let i = 1; i <= parts.length; i++) {
@@ -37,7 +37,7 @@ export function buildTree(
   }
 
   for (const note of notes) {
-    const rel = note.filePath.startsWith(vault + "/")
+    const rel = note.filePath.startsWith(`${vault}/`)
       ? note.filePath.slice(vault.length + 1)
       : note.filePath;
     const parts = rel.split("/");
@@ -72,7 +72,7 @@ export function buildTree(
     // Find direct subfolders: keys in byFolder that are exactly one segment deeper
     const subfolders = new Set<string>();
     for (const key of byFolder.keys()) {
-      if (key !== folderPath && key.startsWith(folderPath + "/")) {
+      if (key !== folderPath && key.startsWith(`${folderPath}/`)) {
         const rel = key.slice(folderPath.length + 1);
         if (!rel.includes("/")) subfolders.add(key);
       }
@@ -82,7 +82,7 @@ export function buildTree(
       .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
       .map((fp) => ({
         kind: "folder" as const,
-        name: fp.split("/").pop()!,
+        name: fp.split("/").at(-1) ?? "",
         path: fp,
         children: buildChildren(fp),
       }));
@@ -99,12 +99,10 @@ export function buildTree(
  */
 export function getAllFolderPaths(
   tree: TreeNode[],
-  vaultPath: string
+  vaultPath: string,
 ): Array<{ label: string; path: string }> {
   const vault = vaultPath.replace(/\/+$/, "");
-  const result: Array<{ label: string; path: string }> = [
-    { label: "/ (root)", path: vault },
-  ];
+  const result: Array<{ label: string; path: string }> = [{ label: "/ (root)", path: vault }];
 
   function collect(nodes: TreeNode[]) {
     for (const node of nodes) {

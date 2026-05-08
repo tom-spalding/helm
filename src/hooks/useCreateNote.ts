@@ -1,7 +1,7 @@
 import { ulid } from "ulid";
-import { useNoteStore } from "../store/notes";
 import { noteFilePath, serializeNote } from "../lib/note-parser";
 import { tauriCommands } from "../lib/tauri-commands";
+import { useNoteStore } from "../store/notes";
 import { useUIStore } from "../store/ui";
 import type { Note } from "../types/note";
 
@@ -17,7 +17,7 @@ export function useCreateNote() {
     const id = ulid();
     const title = "Untitled";
     const filePath = noteFilePath(vault.path, `untitled-${id.slice(-8).toLowerCase()}`);
-    const fileName = filePath.split("/").pop()!;
+    const fileName = filePath.split("/").at(-1) ?? "";
 
     const note: Note = {
       id,

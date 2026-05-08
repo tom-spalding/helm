@@ -52,6 +52,10 @@ export interface NoteFrontmatter {
   locked?: boolean;
   /** Whether the note is pinned to the top of lists */
   pinned?: boolean;
+  /** Position index within a Kanban column (persists drag-and-drop order) */
+  kanbanOrder?: number;
+  /** Position index within an Eisenhower quadrant (persists drag-and-drop order) */
+  eisenhowerOrder?: number;
   /** Allow arbitrary extra fields in frontmatter */
   [key: string]: unknown;
 }
@@ -78,9 +82,9 @@ export interface Note {
  * Eisenhower matrix quadrant categories based on urgent/important flags.
  */
 export type EisenhowerQuadrant =
-  | "do"        // urgent + important (top priority)
-  | "schedule"  // not urgent + important (plan for later)
-  | "delegate"  // urgent + not important (pass to someone else)
+  | "do" // urgent + important (top priority)
+  | "schedule" // not urgent + important (plan for later)
+  | "delegate" // urgent + not important (pass to someone else)
   | "eliminate"; // not urgent + not important (skip)
 
 /**
