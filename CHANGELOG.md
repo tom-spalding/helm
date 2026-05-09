@@ -1,3 +1,12 @@
+## v0.3.0 — 2026-05-09
+
+- fix: add type declaration for d3-force-3d
+- style polish
+- final graph adjustments
+- Aaron feedback (#2)
+- chore: update version to 0.2.0 and enhance release script
+- release: add Helm_0.2.0_aarch64.dmg
+
 # Changelog
 
 ## v0.2.0 — 2026-05-08
