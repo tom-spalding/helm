@@ -187,33 +187,41 @@ function ThemesTab() {
   const { theme, setTheme } = useThemeStore();
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {THEMES.map((t) => {
-        const isActive = theme.id === t.id;
-        return (
-          <button
-            type="button"
-            key={t.id}
-            onClick={() => setTheme(t.id)}
-            className="rounded-xl border-2 p-4 text-left transition-all"
-            style={{
-              background: t.bg,
-              color: t.text,
-              borderColor: isActive ? t.accent : t.border,
-              // Extra ring effect for active state without a Tailwind ring class
-              boxShadow: isActive ? `0 0 0 1px ${t.accent}` : "none",
-            }}
-          >
-            <p className="mb-2 text-sm font-bold" style={{ color: t.text }}>
-              {t.name}
-            </p>
-            <p className="text-xs leading-relaxed" style={{ color: t.textMuted }}>
-              Lorem ipsum <strong style={{ color: t.text }}>dolor sit amet</strong>, consectetur
-              adipiscing elit. Iaculis <span style={{ color: t.accent }}>semper</span> pharetra.
-            </p>
-          </button>
-        );
-      })}
+    <div className="grid grid-cols-3 gap-3">
+      {[...THEMES]
+        .sort((a, b) => {
+          if (a.colorScheme !== b.colorScheme) return a.colorScheme === "light" ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        })
+        .map((t) => {
+          const isActive = theme.id === t.id;
+          return (
+            <button
+              type="button"
+              key={t.id}
+              data-theme={t.id}
+              onClick={() => setTheme(t.id)}
+              className="rounded-xl border-2 p-4 text-left transition-all"
+              style={{
+                backgroundColor: "var(--color-base-100)",
+                color: "var(--color-base-content)",
+                borderColor: isActive ? "var(--color-primary)" : "var(--color-border)",
+                boxShadow: isActive ? "0 0 0 1px var(--color-primary)" : "none",
+              }}
+            >
+              <p className="mb-2 text-sm font-bold">{t.name}</p>
+              <p
+                className="text-xs leading-relaxed"
+                style={{ color: "color-mix(in oklab, var(--color-base-content) 60%, transparent)" }}
+              >
+                Lorem ipsum{" "}
+                <strong style={{ color: "var(--color-base-content)" }}>dolor sit amet</strong>,
+                consectetur adipiscing elit. Iaculis{" "}
+                <span style={{ color: "var(--color-accent)" }}>semper</span> pharetra.
+              </p>
+            </button>
+          );
+        })}
     </div>
   );
 }
@@ -264,7 +272,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: modal backdrop captures clicks outside the dialog
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-16"
       onClick={handleOverlayClick}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
@@ -272,7 +280,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     >
       <div
         className="flex flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
-        style={{ width: 520, maxHeight: "80vh" }}
+        style={{ width: 760, maxHeight: "85vh" }}
       >
         {/* Header */}
         <div className="relative flex items-center justify-center border-b border-[var(--color-border)] px-6 py-4">

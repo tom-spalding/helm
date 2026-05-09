@@ -3,20 +3,65 @@
 
 :root {
   --sidebar-width: 260px;
-  --color-bg: #1c1c1e;
-  --color-surface: #2c2c2e;
-  --color-border: #3a3a3c;
-  --color-text: #f2f2f7;
-  --color-text-muted: #8e8e93;
-  --color-accent: #0a84ff;
 
-  /* Editor typography — overridden at runtime by applySettings() */
+  /* ── Derived / alias vars — used by component files ─────────── */
+  /* Theme color vars come exclusively from [data-theme="x"] blocks (injected by injectThemeStyles()) */
+  --color-border: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+  --color-bg: var(--color-base-100);
+  --color-surface: var(--color-base-200);
+  --color-text: var(--color-base-content);
+  /* Muted text = base-content at 60% — correct on any base background */
+  --color-text-muted: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+
+  /* ── Syntax highlighting — semantic palette blended toward base-content   ── */
+  /* color-mix pushes each color toward the theme's text color so it stays  */
+  /* readable on both light (dark base-content) and dark (light base-content) */
+  /* Tweak --syntax-blend to control vibrancy: higher = more color, lower = safer contrast */
+  --syntax-blend: 70%;
+  --color-syntax-comment: var(--color-text-muted);
+  --color-syntax-keyword: color-mix(
+    in oklch,
+    var(--color-primary) var(--syntax-blend),
+    var(--color-base-content)
+  );
+  --color-syntax-number: color-mix(
+    in oklch,
+    var(--color-warning) var(--syntax-blend),
+    var(--color-base-content)
+  );
+  --color-syntax-string: color-mix(
+    in oklch,
+    var(--color-success) var(--syntax-blend),
+    var(--color-base-content)
+  );
+  --color-syntax-function: color-mix(
+    in oklch,
+    var(--color-accent) var(--syntax-blend),
+    var(--color-base-content)
+  );
+  --color-syntax-variable: color-mix(
+    in oklch,
+    var(--color-secondary) var(--syntax-blend),
+    var(--color-base-content)
+  );
+  --color-syntax-builtin: color-mix(
+    in oklch,
+    var(--color-info) var(--syntax-blend),
+    var(--color-base-content)
+  );
+  --color-syntax-meta: var(--color-text-muted);
+
+  /* ── Editor typography — overridden at runtime by applySettings() */
   --editor-font-size: 16px;
   --editor-line-height: 1.7;
   --editor-max-width: 72ch;
 
   /* Single spacing unit used for all block-level bottom spacing */
   --spacing-block: 0.75em;
+
+  /* ── Font families ───────────────────────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
 }
 
 input[type="range"] {
@@ -24,18 +69,18 @@ input[type="range"] {
 }
 
 .code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8em;
-  background: var(--color-surface);
+  background: var(--color-base-100);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 1px 5px;
 }
 
 .kbd {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8em;
-  background: var(--color-surface);
+  background: var(--color-base-200);
   border: 1px solid var(--color-border);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -43,9 +88,9 @@ input[type="range"] {
 }
 
 body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  background-color: var(--color-base-100);
+  color: var(--color-base-content);
+  font-family: var(--font-sans);
   margin: 0;
 }
 
@@ -60,12 +105,12 @@ body {
 .prose ol,
 .prose ul,
 .prose blockquote {
-  color: var(--color-text);
+  color: var(--color-base-content);
 }
 .prose :where(h1, h2, h3, h4, h5, h6),
 .prose :where(strong),
 .prose :where(b) {
-  color: var(--color-text) !important;
+  color: var(--color-base-content) !important;
 }
 .prose :where(h1, h2, h3, h4, h5, h6) {
   margin: 0 !important;
@@ -73,7 +118,7 @@ body {
   padding-bottom: var(--spacing-block) !important;
 }
 .prose :where(em) {
-  color: var(--color-text-muted);
+  color: var(--color-neutral-content);
 }
 .prose :where(a) {
   color: var(--color-accent);
@@ -85,17 +130,17 @@ body {
 }
 .prose :where(blockquote) {
   border-left-color: var(--color-border);
-  color: var(--color-text-muted);
+  color: var(--color-neutral-content);
 }
 
 /* ── TipTap inline code ─────────────────────────────────────── */
 .prose :where(code):not(pre code) {
-  background: #2c2c2e;
+  background: var(--color-base-300);
   border-radius: 4px;
   padding: 0.1em 0.35em;
   font-size: 0.88em;
-  font-family: "SF Mono", ui-monospace, monospace;
-  color: #e5c07b;
+  font-family: var(--font-mono);
+  color: var(--color-syntax-string);
 }
 .prose :where(code):not(pre code)::before,
 .prose :where(code):not(pre code)::after {
@@ -104,26 +149,26 @@ body {
 
 /* ── TipTap code block (lowlight) ───────────────────────────── */
 .prose pre {
-  background: #1a1a1c;
-  border: 1px solid #3a3a3c;
+  background: var(--color-base-200);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 1rem 1.25rem;
   overflow-x: auto;
-  font-family: "SF Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 1.6;
 }
 .prose pre code {
   background: none;
   padding: 0;
-  color: #abb2bf;
+  color: var(--color-base-content);
   font-size: inherit;
 }
 
 /* ── Highlight mark (==text==) ──────────────────────────────── */
 .prose mark {
-  background: #0a84ff33;
-  color: #6ac5fe;
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  color: var(--color-accent);
   border-radius: 3px;
   padding: 0.05em 0.2em;
 }
@@ -158,7 +203,7 @@ ul[data-type="taskList"] {
 }
 ul[data-type="taskList"] li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.6rem;
   padding: 0.1rem 0 !important;
   margin: 0 !important;
@@ -170,14 +215,15 @@ ul[data-type="taskList"] li > div > p {
 ul[data-type="taskList"] li > label {
   flex-shrink: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 ul[data-type="taskList"] li > label input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   width: 1rem;
   height: 1rem;
-  border: 1.5px solid #8e8e93;
+  border: 2px solid var(--color-accent);
+  margin-top: 0.5em;
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -189,15 +235,15 @@ ul[data-type="taskList"] li > label input[type="checkbox"] {
     border-color 0.15s;
 }
 ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
-  background: #0a84ff;
-  border-color: #0a84ff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
   content: "";
   display: block;
   width: 0.35rem;
   height: 0.6rem;
-  border: 2px solid white;
+  border: 2px solid var(--color-accent-content);
   border-top: none;
   border-left: none;
   transform: rotate(45deg) translate(-1px, -1px);
@@ -206,8 +252,9 @@ ul[data-type="taskList"] li > div {
   flex: 1;
 }
 ul[data-type="taskList"] li[data-checked="true"] > div {
-  color: #8e8e93;
+  color: var(--color-text-muted);
   text-decoration: line-through;
+  text-decoration-color: var(--color-text-muted);
 }
 /* nested task lists */
 ul[data-type="taskList"] ul[data-type="taskList"] {
@@ -232,55 +279,53 @@ ul[data-type="taskList"] ul[data-type="taskList"] {
 .prose img {
   max-width: 100%;
   border-radius: 8px;
-  padding: 0.5rem 0; /* top/bottom breathing room */
+  padding: 0.5rem 0;
 }
 
-/* ── Lowlight / highlight.js token colours (One Dark) ──────── */
+/* ── Lowlight / highlight.js syntax tokens ──────────────────── */
 .hljs-comment,
 .hljs-quote {
-  color: #5c6370;
+  color: var(--color-syntax-comment);
   font-style: italic;
 }
 .hljs-keyword,
 .hljs-selector-tag {
-  color: #c678dd;
+  color: var(--color-syntax-keyword);
 }
 .hljs-number,
 .hljs-literal {
-  color: #d19a66;
+  color: var(--color-syntax-number);
 }
 .hljs-string,
 .hljs-doctag {
-  color: #98c379;
+  color: var(--color-syntax-string);
 }
 .hljs-title,
 .hljs-section,
 .hljs-type {
-  color: #61afef;
+  color: var(--color-syntax-function);
 }
 .hljs-variable,
 .hljs-template-variable,
 .hljs-attr {
-  color: #e06c75;
+  color: var(--color-syntax-variable);
 }
 .hljs-built_in,
 .hljs-builtin-name {
-  color: #56b6c2;
+  color: var(--color-syntax-builtin);
 }
-.hljs-tag {
-  color: #e06c75;
-}
+.hljs-tag,
 .hljs-name {
-  color: #e06c75;
+  color: var(--color-syntax-variable);
 }
 .hljs-attribute {
-  color: #d19a66;
+  color: var(--color-syntax-number);
 }
 .hljs-symbol,
 .hljs-bullet,
 .hljs-link {
-  color: #98c379;
+  color: var(--color-syntax-string);
 }
 .hljs-meta {
-  color: #5c6370;
+  color: var(--color-syntax-meta);
 }

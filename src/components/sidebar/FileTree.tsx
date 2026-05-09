@@ -1,12 +1,7 @@
-import {
-  DndContext,
-  type DragEndEvent,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/dom";
+import { KeyboardSensor, PointerActivationConstraints, PointerSensor } from "@dnd-kit/dom";
+import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
+import { Icon } from "@iconify/react";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import React, { useMemo, useState } from "react";
 import { ulid } from "ulid";
@@ -17,6 +12,18 @@ import { useNoteStore } from "../../store/notes";
 import { useUIStore } from "../../store/ui";
 import type { Note, VaultConfig } from "../../types/note";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+
+const sensors = [
+  PointerSensor.configure({
+    activationConstraints(event) {
+      if (event.pointerType === "touch") {
+        return [new PointerActivationConstraints.Delay({ value: 250, tolerance: 5 })];
+      }
+      return [new PointerActivationConstraints.Distance({ value: 5 })];
+    },
+  }),
+  KeyboardSensor,
+];
 
 interface Props {
   notes: Note[];
@@ -31,17 +38,7 @@ function NewFolderInput({ onCommit }: { onCommit: (name: string) => void }) {
   }, []);
   return (
     <div style={{ paddingLeft: 8 }} className="flex items-center gap-1.5 py-1 pr-2">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        className="h-3.5 w-3.5 shrink-0 opacity-60"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        aria-hidden="true"
-      >
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      </svg>
+      <Icon icon="uil:folder" className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
       <input
         ref={inputRef}
         placeholder="folder name"
@@ -124,19 +121,17 @@ function NoteItem({
   onRenameCommit: (v: string) => void;
   onRenameCancel: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { ref, isDragSource } = useDraggable({
     id: note.filePath, // filePaths are always unique; note.id can be empty
     data: { note },
   });
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: dnd-kit spreads role, tabIndex, and onKeyDown via {...attributes} and {...listeners}
-    // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handler provided by dnd-kit {...listeners}
+    // biome-ignore lint/a11y/useKeyWithClickEvents: drag-and-drop file tree item
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop file tree item
     <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      style={{ paddingLeft: depth * 12 + 8, opacity: isDragging ? 0.4 : 1 }}
+      ref={ref}
+      style={{ paddingLeft: depth * 12 + 8, opacity: isDragSource ? 0.4 : 1 }}
       className={`group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors cursor-pointer ${
         isSelected
           ? "bg-[var(--color-surface)] text-[var(--color-text)]"
@@ -147,18 +142,7 @@ function NoteItem({
       }}
       onContextMenu={onContextMenu}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        className="h-3.5 w-3.5 shrink-0 opacity-50"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        aria-hidden="true"
-      >
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-      </svg>
+      <Icon icon="uil:file" className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
       {isRenaming ? (
         <RenameInput
           initial={note.frontmatter.title}
@@ -169,18 +153,7 @@ function NoteItem({
         <span className="flex-1 truncate">{note.frontmatter.title || note.fileName}</span>
       )}
       {note.frontmatter.pinned && !isRenaming && (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-3 w-3 shrink-0 opacity-40"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <line x1="12" y1="17" x2="12" y2="22" />
-          <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-        </svg>
+        <Icon icon="uil:map-pin" className="h-3 w-3 shrink-0 opacity-40" aria-hidden="true" />
       )}
     </div>
   );
@@ -208,19 +181,19 @@ function FolderItem({
   onRenameCancel: () => void;
   children?: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { ref, isDropTarget } = useDroppable({
     id: `folder-${node.path}`,
     data: { folderPath: node.path },
   });
 
   return (
-    <div ref={setNodeRef}>
+    <div ref={ref}>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: folder row is a nav element; keyboard users use context menu via keyboard shortcut */}
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: folder toggle is pointer-driven navigation within the file tree */}
       <div
         style={{ paddingLeft: depth * 12 + 8 }}
         className={`group flex items-center gap-1.5 rounded-md py-1 pr-2 text-sm cursor-pointer transition-colors ${
-          isOver
+          isDropTarget
             ? "bg-[var(--color-accent)] text-white"
             : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
         }`}
@@ -228,28 +201,12 @@ function FolderItem({
         onContextMenu={onContextMenu}
       >
         {/* Chevron rotates 90° when the folder is open */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
+        <Icon
+          icon="uil:angle-right"
           className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
           aria-hidden="true"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-3.5 w-3.5 shrink-0 opacity-60"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
+        />
+        <Icon icon="uil:folder" className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
         {isRenaming ? (
           <RenameInput initial={node.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
         ) : (
@@ -263,14 +220,14 @@ function FolderItem({
 
 // Drop target for the vault root — dropping here moves a note out of any subfolder.
 function VaultRootDrop({ vaultPath, children }: { vaultPath: string; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { ref, isDropTarget } = useDroppable({
     id: `folder-${vaultPath}`,
     data: { folderPath: vaultPath },
   });
   return (
     <div
-      ref={setNodeRef}
-      className={`flex-1 overflow-y-auto py-1 min-h-0 rounded transition-colors ${isOver ? "ring-1 ring-[var(--color-accent)]" : ""}`}
+      ref={ref}
+      className={`flex-1 overflow-y-auto py-1 min-h-0 rounded transition-colors ${isDropTarget ? "ring-1 ring-[var(--color-accent)]" : ""}`}
     >
       {children}
     </div>
@@ -279,10 +236,20 @@ function VaultRootDrop({ vaultPath, children }: { vaultPath: string; children: R
 
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
+function isNote(value: unknown): value is Note {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "filePath" in value &&
+    "id" in value &&
+    "frontmatter" in value
+  );
+}
+
 export function FileTree({ notes, vault }: Props) {
-  const { selectedNoteId, selectNote, knownFolderPaths } = useNoteStore();
+  const { selectedNoteId, selectNote, knownFolderPaths, addNote, updateNote, removeNote } =
+    useNoteStore();
   const { setView } = useUIStore();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState>(null);
@@ -328,7 +295,7 @@ export function FileTree({ notes, vault }: Props) {
 
     try {
       await tauriCommands.writeNote(filePath, serializeNote(note));
-      useNoteStore.getState().addNote(note);
+      addNote(note);
       selectNote(id);
       setView("notes");
     } catch (e) {
@@ -343,7 +310,7 @@ export function FileTree({ notes, vault }: Props) {
     };
     try {
       await tauriCommands.writeNote(note.filePath, serializeNote(updated));
-      useNoteStore.getState().updateNote(updated);
+      updateNote(updated);
     } catch (e) {
       console.error("Failed to toggle pin:", e);
     }
@@ -366,7 +333,7 @@ export function FileTree({ notes, vault }: Props) {
     try {
       await tauriCommands.renameNote(note.filePath, newFilePath);
       await tauriCommands.writeNote(newFilePath, serializeNote(updated));
-      useNoteStore.getState().updateNote(updated);
+      updateNote(updated);
     } catch (e) {
       console.error("Failed to rename note:", e);
     }
@@ -380,7 +347,7 @@ export function FileTree({ notes, vault }: Props) {
     );
     if (!ok) return;
     if (note.id === selectedNoteId) selectNote(null);
-    useNoteStore.getState().removeNote(note.id);
+    removeNote(note.id);
     try {
       await tauriCommands.deleteNote(note.filePath);
     } catch (e) {
@@ -405,7 +372,7 @@ export function FileTree({ notes, vault }: Props) {
             ...n,
             filePath: newPath + n.filePath.slice(folderPath.length),
           };
-          useNoteStore.getState().updateNote(updatedNote);
+          updateNote(updatedNote);
         }
       }
       // Update collapsed set: replace old path with new path (preserving collapsed state)
@@ -435,7 +402,7 @@ export function FileTree({ notes, vault }: Props) {
     for (const n of allNotes) {
       if (n.filePath.startsWith(`${folderPath}/`)) {
         if (n.id === selectedNoteId) selectNote(null);
-        useNoteStore.getState().removeNote(n.id);
+        removeNote(n.id);
       }
     }
     try {
@@ -450,18 +417,18 @@ export function FileTree({ notes, vault }: Props) {
     if (newFilePath === note.filePath) return;
     try {
       await tauriCommands.renameNote(note.filePath, newFilePath);
-      useNoteStore.getState().updateNote({ ...note, filePath: newFilePath });
+      updateNote({ ...note, filePath: newFilePath });
     } catch (e) {
       console.error("Failed to move note:", e);
     }
   }
 
   async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return;
-    const note = active.data.current?.note as Note | undefined;
-    const targetFolderPath = over.data.current?.folderPath as string | undefined;
-    if (!note || !targetFolderPath) return;
+    if (event.canceled) return;
+    const { source, target } = event.operation;
+    const note = source?.data?.note;
+    const targetFolderPath = target?.data?.folderPath;
+    if (!isNote(note) || typeof targetFolderPath !== "string") return;
     // Avoid a no-op move when the note is already in the target folder
     const currentFolder = note.filePath.split("/").slice(0, -1).join("/");
     if (currentFolder === targetFolderPath) return;
@@ -611,7 +578,7 @@ export function FileTree({ notes, vault }: Props) {
   }
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="relative flex flex-col min-h-0 h-full">
         {/* Toolbar — New Note and New Folder buttons */}
         <div className="flex items-center justify-between px-2 py-1.5 border-b border-[var(--color-border)]">
@@ -625,20 +592,7 @@ export function FileTree({ notes, vault }: Props) {
               className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
               onClick={() => handleCreateNote(vault.path)}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-3.5 w-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden="true"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="12" y1="18" x2="12" y2="12" />
-                <line x1="9" y1="15" x2="15" y2="15" />
-              </svg>
+              <Icon icon="uil:file-medical" className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -646,19 +600,7 @@ export function FileTree({ notes, vault }: Props) {
               className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
               onClick={() => setNewFolderParent(vault.path)}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-3.5 w-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden="true"
-              >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                <line x1="12" y1="11" x2="12" y2="17" />
-                <line x1="9" y1="14" x2="15" y2="14" />
-              </svg>
+              <Icon icon="uil:folder-plus" className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -690,6 +632,6 @@ export function FileTree({ notes, vault }: Props) {
           <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
         )}
       </div>
-    </DndContext>
+    </DragDropProvider>
   );
 }

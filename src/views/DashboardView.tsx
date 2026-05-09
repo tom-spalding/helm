@@ -7,20 +7,35 @@ import { useState } from "react";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { NOTE_STATES } from "../lib/constants";
 import { useNoteStore } from "../store/notes";
+import { useThemeStore } from "../store/theme";
 import { useUIStore } from "../store/ui";
 import type { Note } from "../types/note";
 import { getQuadrant } from "../types/note";
 
-const CHART_COLORS = [
-  "#0a84ff",
-  "#30d158",
-  "#ff453a",
-  "#ff9f0a",
-  "#bf5af2",
-  "#64d2ff",
-  "#ffd60a",
-  "#ff6961",
-];
+/**
+ * Read chart colors from the active theme's CSS custom properties.
+ * SVG fill attributes don't resolve var(), so we read computed values directly.
+ * Subscribing to the theme store ensures charts re-render on theme change.
+ */
+function useChartColors(): { colors: string[]; strokeColor: string } {
+  useThemeStore((s) => s.theme); // subscribe so charts re-render on theme switch
+  const style = getComputedStyle(document.documentElement);
+  const v = (name: string) => style.getPropertyValue(name).trim();
+  return {
+    colors: [
+      v("--color-primary"),
+      v("--color-success"),
+      v("--color-error"),
+      v("--color-warning"),
+      v("--color-info"),
+      `color-mix(in oklch, ${v("--color-primary")} 50%, ${v("--color-success")})`,
+      `color-mix(in oklch, ${v("--color-error")} 50%, ${v("--color-accent")})`,
+      `color-mix(in oklch, ${v("--color-warning")} 50%, ${v("--color-info")})`,
+    ],
+    // Use the page background as stroke so slices have clean themed gaps
+    strokeColor: v("--color-base-100"),
+  };
+}
 
 /** Dashboard filter type — an Eisenhower quadrant, blocked notes, or all notes */
 type Filter = "urgent" | "schedule" | "delegate" | "eliminate" | "blocked" | "all";
@@ -54,7 +69,7 @@ interface ChipProps {
   value: number;
   /** Label text */
   label: string;
-  /** CSS classes for background/border/text color */
+  /** CSS color value (e.g. var(--color-error)) used to derive bg/border/text */
   color: string;
   /** Whether this chip is currently selected */
   active: boolean;
@@ -72,12 +87,22 @@ function SummaryChip({ value, label, color, active, onClick }: ChipProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border px-4 py-3 text-left transition-all min-w-[88px] ${color} ${
-        active ? "ring-2 ring-white/30 scale-105" : "opacity-80 hover:opacity-100"
+      style={{
+        backgroundColor: `color-mix(in oklab, ${color} 15%, transparent)`,
+        borderColor: `color-mix(in oklab, ${color} 35%, transparent)`,
+        color,
+      }}
+      className={`rounded-xl border px-4 py-3 text-left transition-all min-w-[88px] ${
+        active ? "ring-2 ring-offset-1 scale-105" : "opacity-80 hover:opacity-100"
       }`}
     >
       <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs text-[var(--color-text-muted)]">{label}</p>
+      <p
+        className="text-xs"
+        style={{ color: `color-mix(in oklab, ${color} 80%, var(--color-base-content))` }}
+      >
+        {label}
+      </p>
     </button>
   );
 }
@@ -87,11 +112,13 @@ function SummaryChip({ value, label, color, active, onClick }: ChipProps) {
  * @internal
  */
 const tooltipStyle = {
-  backgroundColor: "var(--color-surface)",
+  backgroundColor: "var(--color-base-200)",
   border: "1px solid var(--color-border)",
   borderRadius: "8px",
-  color: "var(--color-text)",
+  color: "var(--color-base-content)",
 };
+
+const tooltipTextStyle = { color: "var(--color-base-content)" };
 
 /**
  * Dashboard view component.
@@ -101,6 +128,7 @@ const tooltipStyle = {
  * @returns The dashboard UI
  */
 export function DashboardView() {
+  const { colors, strokeColor } = useChartColors();
   const { notes, selectNote } = useNoteStore();
   const { setView } = useUIStore();
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
@@ -135,9 +163,9 @@ export function DashboardView() {
     .sort(([, a], [, b]) => b - a)
     .map(([name, value]) => ({ name, value }));
 
-  // Same color assignment as the chart (index into CHART_COLORS by stateData order)
+  // Same color assignment as the chart (index into colors by stateData order)
   const stateColorMap = Object.fromEntries(
-    stateData.map((d, i) => [d.name, CHART_COLORS[i % CHART_COLORS.length]]),
+    stateData.map((d, i) => [d.name, colors[i % colors.length]]),
   );
 
   function handleChipClick(filter: Filter) {
@@ -168,42 +196,42 @@ export function DashboardView() {
         <SummaryChip
           value={notes.filter((n) => getQuadrant(n) === "do").length}
           label="Do"
-          color="border-red-500/20 bg-red-500/10 text-red-400"
+          color="var(--color-error)"
           active={activeFilter === "urgent"}
           onClick={() => handleChipClick("urgent")}
         />
         <SummaryChip
           value={notes.filter((n) => getQuadrant(n) === "schedule").length}
           label="Schedule"
-          color="border-blue-500/20 bg-blue-500/10 text-blue-400"
+          color="var(--color-info)"
           active={activeFilter === "schedule"}
           onClick={() => handleChipClick("schedule")}
         />
         <SummaryChip
           value={notes.filter((n) => getQuadrant(n) === "delegate").length}
           label="Delegate"
-          color="border-orange-500/20 bg-orange-500/10 text-orange-400"
+          color="var(--color-secondary)"
           active={activeFilter === "delegate"}
           onClick={() => handleChipClick("delegate")}
         />
         <SummaryChip
           value={notes.filter((n) => getQuadrant(n) === "eliminate").length}
           label="Eliminate"
-          color="border-purple-500/20 bg-purple-500/10 text-purple-400"
+          color="var(--color-accent)"
           active={activeFilter === "eliminate"}
           onClick={() => handleChipClick("eliminate")}
         />
         <SummaryChip
           value={notes.filter((n) => n.frontmatter.blocked).length}
           label="Blocked"
-          color="border-yellow-500/20 bg-yellow-500/10 text-yellow-400"
+          color="var(--color-warning)"
           active={activeFilter === "blocked"}
           onClick={() => handleChipClick("blocked")}
         />
         <SummaryChip
           value={notes.length}
           label="Total Notes"
-          color="border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
+          color="var(--color-base-content)"
           active={activeFilter === "all"}
           onClick={() => handleChipClick("all")}
         />
@@ -225,12 +253,18 @@ export function DashboardView() {
                     outerRadius={85}
                     dataKey="value"
                     paddingAngle={2}
+                    stroke={strokeColor}
+                    strokeWidth={2}
                   >
                     {tagData.map((entry, i) => (
-                      <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      <Cell key={entry.name} fill={colors[i % colors.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle as React.CSSProperties} />
+                  <Tooltip
+                    contentStyle={tooltipStyle as React.CSSProperties}
+                    itemStyle={tooltipTextStyle}
+                    labelStyle={tooltipTextStyle}
+                  />
                   <Legend
                     formatter={(v) => (
                       <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>
@@ -259,12 +293,18 @@ export function DashboardView() {
                   outerRadius={85}
                   dataKey="value"
                   paddingAngle={2}
+                  stroke={strokeColor}
+                  strokeWidth={2}
                 >
                   {stateData.map((entry, i) => (
-                    <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    <Cell key={entry.name} fill={colors[i % colors.length]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle as React.CSSProperties} />
+                <Tooltip
+                  contentStyle={tooltipStyle as React.CSSProperties}
+                  itemStyle={tooltipTextStyle}
+                  labelStyle={tooltipTextStyle}
+                />
                 <Legend
                   formatter={(v) => (
                     <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>{v}</span>
@@ -287,12 +327,18 @@ export function DashboardView() {
                     outerRadius={85}
                     dataKey="value"
                     paddingAngle={2}
+                    stroke={strokeColor}
+                    strokeWidth={2}
                   >
                     {teamData.map((entry, i) => (
-                      <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      <Cell key={entry.name} fill={colors[i % colors.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle as React.CSSProperties} />
+                  <Tooltip
+                    contentStyle={tooltipStyle as React.CSSProperties}
+                    itemStyle={tooltipTextStyle}
+                    labelStyle={tooltipTextStyle}
+                  />
                   <Legend
                     formatter={(v) => (
                       <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>
