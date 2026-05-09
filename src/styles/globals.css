@@ -217,13 +217,18 @@ ul[data-type="taskList"] li > label {
   display: flex;
   align-items: flex-start;
 }
+/* Native checkboxes use accent-color so they follow the active theme */
+input[type="checkbox"]:not(ul[data-type="taskList"] li > label input) {
+  accent-color: var(--color-accent);
+}
+
 ul[data-type="taskList"] li > label input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   width: 1rem;
   height: 1rem;
   border: 2px solid var(--color-accent);
-  margin-top: 0.5em;
+  margin-top: 0.3em;
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
