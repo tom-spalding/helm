@@ -1,144 +1,161 @@
 # Helm
 
-A personal knowledge management desktop app built with Tauri + React. Notes are stored as local markdown files with YAML frontmatter. Features a TipTap editor, Eisenhower matrix, Kanban board, force-directed graph, and 6 color themes.
+Helm is a personal knowledge management app for macOS. Notes are plain markdown files with YAML frontmatter stored in a folder on your computer — your **vault**. Helm never touches a server; everything stays on your device.
 
 ---
 
-## Prerequisites
+## Getting Started
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Node.js | ≥ 20 | [nodejs.org](https://nodejs.org) or `brew install node` |
-| Rust | stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| Tauri CLI | v2 | included as a dev dependency (`npm run tauri`) |
-| Xcode CLI Tools | (macOS) | `xcode-select --install` |
+### 1. Install
 
-Verify your Rust setup:
-```sh
-rustc --version
-cargo --version
-```
+Download the latest `.dmg` from the [Releases](../../releases) page, open it, and drag Helm to your Applications folder.
 
----
+### 2. Open a vault
 
-## Running Locally
+On first launch, Helm will ask you to choose a vault folder. This can be:
 
-```sh
-# Install JS dependencies
-npm install
+- An existing folder of `.md` files (Obsidian vaults work out of the box)
+- A new empty folder you create for the occasion
 
-# Start the Tauri dev window (also starts the Vite dev server)
-npm start
-```
+Helm watches the folder for changes, so files edited externally (in your terminal, another editor, or synced from another device) will reload automatically.
 
-> **Note:** This project uses npm. Do not use pnpm or yarn — they will generate incompatible lock files.
+### 3. Create your first note
 
-This opens a native app window backed by a hot-reloading React frontend. Rust changes require a full recompile; frontend changes hot-reload instantly.
-
-To run just the Vite frontend in a browser (no Tauri APIs):
-```sh
-npm run dev
-# Open http://localhost:1420
-```
-
-> **Note:** File system operations (reading/writing notes) require the full Tauri dev environment. The browser-only mode is useful for UI work that doesn't touch the vault.
+Click the **+** button at the top of the sidebar, give your note a title, and start writing. Helm auto-saves every second and on blur — you never need to save manually.
 
 ---
 
-## Building
+## The Interface
 
-### Development build (debug)
-
-```sh
-npm run tauri build -- --debug
+```
+┌─────────────────┬──────────────────────────────────────────┐
+│   Sidebar       │   Main Panel                             │
+│                 │                                          │
+│  Search         │   Note Editor                            │
+│  Views nav      │   (or Dashboard / Eisenhower /           │
+│  Tag tree       │    Kanban / Graph)                       │
+│  Note list      │                                          │
+│  Theme picker   │                                          │
+│  Settings       │                                          │
+└─────────────────┴──────────────────────────────────────────┘
 ```
 
-Output: `src-tauri/target/debug/bundle/`
+### Sidebar
 
-### Production build
-
-```sh
-npm run tauri build
-```
-
-Output: `src-tauri/target/release/bundle/`
-
-On macOS this produces:
-- `macos/Helm.app` — the app bundle
-- `dmg/Helm_0.1.0_aarch64.dmg` — the distributable disk image
+- **Search** — Full-text search across all note titles and content. Results appear instantly as you type.
+- **Views** — Switch between the five main views: Notes, Dashboard, Eisenhower, Kanban, and Graph.
+- **Filters** — Quick toggles to show All Notes, Locked notes only, or Pinned notes only.
+- **Tag tree** — All tags from your vault displayed as a nested hierarchy with counts. Click any tag to filter the note list to just that tag (and its children).
+- **Note list** — Your notes, with pinned notes always at the top. Click a note to open it.
+- **Theme & Settings** — At the bottom of the sidebar, access theme selection and display preferences.
 
 ---
 
-## Creating a DMG (macOS)
+## Writing Notes
 
-The DMG is built automatically as part of `npm run tauri build`. You'll find it at:
+Helm uses a rich markdown editor with live formatting. You write in markdown and see it rendered inline.
 
-```
-src-tauri/target/release/bundle/dmg/Helm_<version>_aarch64.dmg
-```
+### Markdown support
 
-To distribute the DMG, you'll need to **sign and notarize** it. Set these environment variables before building:
+- Headings (`#`, `##`, `###`)
+- Bold (`**text**`), italic (`*text*`), strikethrough (`~~text~~`), inline code (`` `code` ``)
+- Highlight marks (`==text==`)
+- Ordered and unordered lists
+- Task lists (`- [ ] item`, `- [x] done`)
+- Fenced code blocks with syntax highlighting
+- Images (paste from clipboard — saved automatically to `vault/assets/`)
 
-```sh
-export APPLE_CERTIFICATE="Developer ID Application: Your Name (TEAMID)"
-export APPLE_CERTIFICATE_PASSWORD="keychain-password"
-export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export APPLE_ID="you@example.com"
-export APPLE_PASSWORD="app-specific-password"   # from appleid.apple.com
-export APPLE_TEAM_ID="YOURTEAMID"
-```
+### Linking notes
 
-Then build normally:
-```sh
-npm run tauri build
-```
+Type `[[` anywhere in a note to open the wiki link autocomplete. Start typing a note title and select it from the popup. The link renders inline and is stored as a stable ID reference — so renaming a note never breaks its links.
 
-Tauri handles code signing, notarization, and stapling automatically when those variables are present.
+Example: `See also [[Project Timeline]] for the full schedule.`
 
-For an **unsigned** local build (no Apple Developer account needed), just run `npm run tauri build` without setting those variables. The app will work on your own machine but macOS Gatekeeper will block it on other machines by default.
+### Tags
 
----
+Add tags in the frontmatter or inline in the body with `#tag` syntax. Tags support nested hierarchies: `#work/project-x` appears under `work` in the sidebar tag tree.
 
-## Project Structure
+### Note properties
 
-```
-helm/
-├── src/                    # React + TypeScript frontend
-│   ├── components/         # UI components (editor, sidebar, settings)
-│   ├── lib/                # Utilities (parser, themes, search)
-│   ├── store/              # Zustand state (notes, ui, theme, settings)
-│   ├── types/              # TypeScript type definitions
-│   ├── views/              # Full-page views (Dashboard, Eisenhower, Kanban, Graph)
-│   └── App.tsx             # Root component
-├── src-tauri/              # Rust backend
-│   ├── src/                # Tauri commands (file I/O, vault operations)
-│   ├── tauri.conf.json     # App config, bundle settings, permissions
-│   └── Cargo.toml          # Rust dependencies
-├── docs/
-│   ├── FEATURES.md         # Full feature documentation
-│   └── plans/              # Design docs and implementation plans
-└── package.json
-```
+The **Property Panel** (accessible from the editor) lets you edit a note's metadata without touching the frontmatter directly:
+
+- Title and tags
+- Kanban state (Prepare / Doing / Maintain / Done)
+- Priority flags (Urgent, Important)
+- Blocked status
+- Deadline and team members
+- Locked and Pinned toggles
 
 ---
 
-## Scripts
+## Views
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Vite dev server only (browser, no Tauri) |
-| `npm run tauri dev` | Full Tauri dev window with hot reload |
-| `npm run build` | TypeScript check + Vite production build |
-| `npm run tauri build` | Full native app + DMG (release mode) |
-| `npm run test` | Run Vitest unit tests once |
-| `npm run test:watch` | Vitest in watch mode |
-| `npm run test:ui` | Vitest browser UI |
+### Dashboard
+
+An overview of your entire vault at a glance.
+
+- **Summary chips** — counts for each Eisenhower quadrant (Do, Schedule, Delegate, Eliminate), plus Blocked and Total. Click any chip to filter the view to that subset.
+- **Charts** — Pie charts for tag distribution, Kanban state breakdown, and team member distribution (when applicable).
+- **Note list** — The notes matching the active filter, with state badges and priority indicators.
+
+### Eisenhower Matrix
+
+A 2×2 grid for prioritizing work by urgency and importance.
+
+| | Important | Not Important |
+|---|---|---|
+| **Urgent** | Do | Delegate |
+| **Not Urgent** | Schedule | Eliminate |
+
+Drag cards between quadrants to update their priority flags. Each quadrant has a **+** button to create a new note pre-configured for that category.
+
+### Kanban Board
+
+A four-column workflow board tracking notes through stages:
+
+| Prepare | Doing | Maintain | Done |
+|---------|-------|----------|------|
+| Planning phase | In progress | Ongoing attention | Complete |
+
+Drag cards between columns to change their state. Each column has a **+** to add a note directly into that stage.
+
+### Graph View
+
+An interactive, force-directed visualization of how your notes connect to each other.
+
+- Each **node** is a note; size reflects how many links it has.
+- Each **edge** is a `[[wiki link]]` between two notes.
+- **Pan** by clicking and dragging the background.
+- **Zoom** with the scroll wheel.
+- **Click a node** to open that note in the editor.
+
+Labels appear as you zoom in. Highly connected notes become visible hubs, helping you discover clusters of related thinking.
 
 ---
 
-## Vault Format
+## Organizing Notes
 
-A vault is a folder of `.md` files. Each file has YAML frontmatter:
+### Tags
+
+Tags are hierarchical. A note tagged `work/project-x` automatically appears under both `work` and `work/project-x` in the sidebar tag tree. Use nesting to create topic areas without manual folders.
+
+### Pinned notes
+
+Set `pinned: true` in a note's properties (or frontmatter) to float it to the top of every list. Good for reference notes, daily logs, or anything you return to constantly.
+
+### Locked notes
+
+Set `locked: true` to make a note read-only. The editor disables editing, the delete button is hidden, and a lock icon appears in the header. Useful for archived decisions, templates, or notes you want to preserve exactly.
+
+### Blocked notes
+
+Mark a note as `blocked: true` to flag that it's waiting on something external. Blocked notes appear with a visual indicator in the sidebar and Dashboard.
+
+---
+
+## Frontmatter Reference
+
+Every note is a plain `.md` file. Helm stores metadata in YAML frontmatter between `---` delimiters:
 
 ```markdown
 ---
@@ -147,25 +164,84 @@ title: My Note
 created: 2025-03-13
 updated: 2025-03-13
 tags:
+  - work
   - work/project-x
-urgent: false
+urgent: true
 important: true
 state: Doing
 blocked: false
+locked: false
+pinned: false
+deadline: 2025-04-01
+team:
+  - Alice
+  - Bob
+links:
+  - 01ARZ3NDEKTSV4RRFFQ69G5FB0
 ---
 
-Note body with [[wiki links]] and #inline-tags.
+Note body goes here. [[Wiki links]] and #inline-tags work anywhere.
 ```
 
-Notes are plain files — you can edit them with any text editor, sync with iCloud/Dropbox/git, or use them with other Obsidian-compatible tools.
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | ULID | Stable unique identifier; survives renames |
+| `title` | string | Display name |
+| `created` / `updated` | ISO date | Auto-managed by Helm |
+| `tags` | string[] | Hierarchical tags |
+| `urgent` | boolean | Eisenhower: high time sensitivity |
+| `important` | boolean | Eisenhower: high strategic value |
+| `state` | enum | `Prepare` \| `Doing` \| `Maintain` \| `Done` |
+| `blocked` | boolean | Waiting on an external dependency |
+| `locked` | boolean | Read-only in editor; hides delete button |
+| `pinned` | boolean | Floats to top of all lists |
+| `deadline` | ISO date | Optional due date |
+| `team` | string[] | Optional team members |
+| `links` | ULID[] | Auto-populated from `[[wiki links]]` in body |
+
+You can edit the frontmatter directly in any text editor — Helm will pick up the changes automatically.
 
 ---
 
-## IDE Setup
+## Themes
 
-Recommended extensions for VS Code:
+Six built-in themes, selectable from the bottom of the sidebar:
 
-- [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-- [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)
+| Theme | Style |
+|-------|-------|
+| **Midnight** | Dark, blue accent |
+| **Light** | Bright white, blue accent |
+| **Dracula** | Dark, pink/purple accent |
+| **Nord** | Dark, arctic blue accent |
+| **Catppuccin** | Dark, lavender accent |
+| **Tokyo Night** | Dark, indigo accent |
+
+Your theme choice is saved automatically.
+
+---
+
+## Settings
+
+Access settings from the gear icon in the sidebar.
+
+**Typography**
+- **Font size** — 12–24 px (default 16 px)
+- **Line height** — 1.2–2.2 (default 1.7)
+- **Line width** — 40–100 characters (default 72)
+
+Changes apply live in the editor as you adjust them.
+
+---
+
+## Your Data
+
+- All notes are plain `.md` files — readable and editable with any text editor.
+- Compatible with Obsidian vaults and other tools that use the `[[wiki link]]` convention.
+- Sync with iCloud Drive, Dropbox, or git — just point Helm at your synced folder.
+- No account, no cloud, no telemetry.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build Helm from source.
