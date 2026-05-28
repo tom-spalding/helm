@@ -11,11 +11,13 @@ if [[ ! "$BUMP" =~ ^(patch|minor|major)$ ]]; then
   exit 1
 fi
 
-# Load signing credentials
+# Load signing credentials — abort if missing to prevent unsigned builds
 if [[ -f ./sign.sh ]]; then
   source ./sign.sh
 else
-  echo "✗ sign.sh not found — build will be unsigned"
+  echo "✗ sign.sh not found — aborting. Create sign.sh with Apple signing credentials."
+  echo "  See CONTRIBUTING.md § Releasing for details."
+  exit 1
 fi
 
 # Bump package.json and capture the new version
