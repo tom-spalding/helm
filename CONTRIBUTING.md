@@ -99,6 +99,32 @@ For an **unsigned** local build (no Apple Developer account needed), just run `n
 
 ---
 
+## Releasing
+
+**Always use `release.sh` to cut a release.** Do not bump versions or build manually.
+
+```sh
+./release.sh patch   # 0.3.0 → 0.3.1
+./release.sh minor   # 0.3.0 → 0.4.0
+./release.sh major   # 0.3.0 → 1.0.0
+```
+
+The script:
+1. Bumps the version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`
+2. Generates a changelog entry in `CHANGELOG.md` from commits since the last tag
+3. Commits the version bump and tags the release (`vX.Y.Z`)
+4. Runs `npm run tauri build` to produce the `.dmg`
+5. Copies the DMG to `releases/vX.Y.Z/` and commits it
+
+For signed/notarized builds, create a `sign.sh` at the repo root that exports the Apple signing environment variables (see the Creating a DMG section below). The script sources it automatically if present.
+
+After the script completes, publish with:
+```sh
+git push && git push --tags
+```
+
+---
+
 ## Scripts
 
 | Command | Description |

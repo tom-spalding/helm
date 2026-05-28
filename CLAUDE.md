@@ -89,6 +89,18 @@ Six themes available via the theme store. Apply by calling `applyTheme(theme)` w
 
 `mcp-server/` is a standalone Node.js MCP server for Claude Desktop. It reads/writes the vault directly via the filesystem (not through Tauri). Configured via `HELM_VAULT` env var. Register in `~/Library/Application Support/Claude/claude_desktop_config.json`.
 
+## Releasing
+
+**Always use `release.sh` — never bump versions or run `npm run tauri build` manually.**
+
+```bash
+./release.sh patch   # 0.3.0 → 0.3.1
+./release.sh minor   # 0.3.0 → 0.4.0
+./release.sh major   # 0.3.0 → 1.0.0
+```
+
+Full process is documented in `CONTRIBUTING.md` under the **Releasing** section.
+
 ## Docs
 
 - `docs/plans/2026-03-13-helm.md` — original implementation plan (fully executed)
