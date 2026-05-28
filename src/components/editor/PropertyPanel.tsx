@@ -9,6 +9,8 @@ interface PropertyPanelProps {
   onChange: (updates: Partial<NoteFrontmatter>) => void;
   onTitleTab?: () => void;
   onDelete?: () => void;
+  markdownMode?: boolean;
+  onToggleMarkdown?: () => void;
 }
 
 // Fields handled explicitly — excluded from the "extra fields" section
@@ -31,9 +33,9 @@ const KNOWN_FIELDS = new Set([
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 py-1.5 border-b border-[var(--color-border)]/40 last:border-0">
-      <span className="w-24 shrink-0 text-xs text-[var(--color-text-muted)]">{label}</span>
-      <div className="flex-1 text-sm text-[var(--color-text)]">{children}</div>
+    <div className="flex items-center gap-3 py-1.5 border-b border-base-300/40 last:border-0">
+      <span className="w-24 shrink-0 text-xs opacity-50">{label}</span>
+      <div className="flex-1 text-sm">{children}</div>
     </div>
   );
 }
@@ -44,6 +46,8 @@ export function PropertyPanel({
   onChange,
   onTitleTab,
   onDelete,
+  markdownMode,
+  onToggleMarkdown,
 }: PropertyPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -61,7 +65,7 @@ export function PropertyPanel({
   const extraFields = Object.entries(frontmatter).filter(([k]) => !KNOWN_FIELDS.has(k));
 
   return (
-    <div className="border-b border-[var(--color-border)] px-12 py-4 space-y-3">
+    <div className="border-b border-base-300 px-12 py-4 space-y-3">
       {/* Title row */}
       <div className="flex items-center gap-3">
         <input
@@ -81,7 +85,7 @@ export function PropertyPanel({
             type="button"
             onClick={copyPath}
             title="Copy file path"
-            className="shrink-0 rounded p-1.5 text-[var(--color-text-muted)] opacity-60 hover:bg-[var(--color-surface)] hover:opacity-100 transition-all"
+            className="btn btn-ghost btn-sm btn-square opacity-60 hover:opacity-100"
           >
             {copied ? (
               <svg
@@ -111,12 +115,33 @@ export function PropertyPanel({
             )}
           </button>
         )}
+        {onToggleMarkdown && (
+          <button
+            type="button"
+            onClick={onToggleMarkdown}
+            title={markdownMode ? "Switch to editor" : "Switch to Markdown"}
+            className="btn btn-ghost btn-sm btn-square opacity-60 hover:opacity-100"
+          >
+            {markdownMode ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <polyline points="4 7 4 4 20 4 20 7" />
+                <line x1="9" y1="20" x2="15" y2="20" />
+                <line x1="12" y1="4" x2="12" y2="20" />
+              </svg>
+            )}
+          </button>
+        )}
         {onDelete && (
           <button
             type="button"
             onClick={onDelete}
             title="Delete note"
-            className="shrink-0 rounded p-1.5 text-[var(--color-text-muted)] opacity-60 hover:bg-red-500/10 hover:text-red-400 hover:opacity-100 transition-all"
+            className="btn btn-ghost btn-sm btn-square opacity-60 hover:opacity-100 hover:text-error"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -141,7 +166,7 @@ export function PropertyPanel({
         <div className="flex items-center gap-2">
           <span className="text-[var(--color-text-muted)]">State</span>
           <select
-            className="rounded bg-[var(--color-surface)] px-2 py-0.5 text-[var(--color-text)] outline-none text-sm"
+            className="select select-ghost select-sm h-auto min-h-0 py-0.5"
             value={frontmatter.state}
             onChange={(e) => onChange({ state: e.target.value as NoteState })}
           >
@@ -153,52 +178,52 @@ export function PropertyPanel({
           </select>
         </div>
 
-        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+        <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100">
           <input
             type="checkbox"
             checked={frontmatter.urgent}
             onChange={(e) => onChange({ urgent: e.target.checked })}
-            className="rounded"
+            className="rounded accent-[var(--color-accent)]"
           />
           Urgent
         </label>
 
-        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+        <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100">
           <input
             type="checkbox"
             checked={frontmatter.important}
             onChange={(e) => onChange({ important: e.target.checked })}
-            className="rounded"
+            className="rounded accent-[var(--color-accent)]"
           />
           Important
         </label>
 
-        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+        <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100">
           <input
             type="checkbox"
             checked={frontmatter.blocked}
             onChange={(e) => onChange({ blocked: e.target.checked })}
-            className="rounded"
+            className="rounded accent-[var(--color-accent)]"
           />
           Blocked
         </label>
 
-        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+        <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100">
           <input
             type="checkbox"
             checked={frontmatter.pinned ?? false}
             onChange={(e) => onChange({ pinned: e.target.checked })}
-            className="rounded"
+            className="rounded accent-[var(--color-accent)]"
           />
           Pinned
         </label>
 
-        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--color-text-muted)]">
+        <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100">
           <input
             type="checkbox"
             checked={frontmatter.locked ?? false}
             onChange={(e) => onChange({ locked: e.target.checked })}
-            className="rounded"
+            className="rounded accent-[var(--color-accent)]"
           />
           Locked
         </label>
@@ -207,7 +232,7 @@ export function PropertyPanel({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] transition-colors"
+          className="btn btn-ghost btn-xs ml-auto gap-1"
         >
           Properties
           <svg
@@ -226,7 +251,7 @@ export function PropertyPanel({
 
       {/* Expanded frontmatter panel */}
       {expanded && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/50 px-4 py-2 text-sm">
+        <div className="rounded-lg border border-base-300 bg-base-200/50 px-4 py-2 text-sm">
           <Row label="ID">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">
               {frontmatter.id}
@@ -294,10 +319,7 @@ export function PropertyPanel({
                 {frontmatter.links.map((id) => {
                   const title = notes.find((n) => n.id === id)?.frontmatter.title ?? id;
                   return (
-                    <span
-                      key={id}
-                      className="rounded bg-[var(--color-border)]/50 px-1.5 py-0.5 text-xs text-[var(--color-text-muted)]"
-                    >
+                    <span key={id} className="badge badge-ghost badge-sm">
                       {title}
                     </span>
                   );
@@ -328,10 +350,7 @@ export function PropertyPanel({
       {frontmatter.tags.length > 0 && !expanded && (
         <div className="flex flex-wrap gap-1.5">
           {frontmatter.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-text-muted)]"
-            >
+            <span key={tag} className="badge badge-ghost badge-sm">
               #{tag}
             </span>
           ))}
