@@ -1,3 +1,11 @@
+## v0.5.0 — 2026-06-03
+
+- June updates: tables, context menus, sidebar polish, unmanaged flag, nav history (#4)
+- chore: abort release if sign.sh is missing to prevent unsigned builds
+- release: replace 0.4.0 DMG with signed and notarized build
+- docs: document release process in CONTRIBUTING.md and CLAUDE.md
+- release: add Helm_0.4.0_aarch64.dmg
+
 ## v0.3.0 — 2026-05-09
 
 - fix: add type declaration for d3-force-3d
