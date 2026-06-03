@@ -1,20 +1,33 @@
 import { Icon } from "@iconify/react";
 import { useMemo, useState } from "react";
 import { ulid } from "ulid";
+import { confirm } from "@tauri-apps/plugin-dialog";
+import { buildTree, getAllFolderPaths } from "../../lib/file-tree";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
 import { useTrashStore } from "../../store/trash";
 import { useUIStore } from "../../store/ui";
 import type { Note } from "../../types/note";
+import { ContextMenu, type ContextMenuItem } from "../sidebar/ContextMenu";
+
+type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function NoteListPanel() {
-  const { selectedGrouping, setView } = useUIStore();
-  const { notes, selectedNoteId, selectNote, vaults, activeVaultId, addNote } = useNoteStore();
-  const { items: trashItems, removeFromTrash, permanentlyDelete } = useTrashStore();
+  const { selectedGrouping, setView, navigate } = useUIStore();
+  const { notes, selectedNoteId, selectNote, vaults, activeVaultId, addNote, updateNote, removeNote, knownFolderPaths } = useNoteStore();
+  const { items: trashItems, removeFromTrash, permanentlyDelete, addToTrash } = useTrashStore();
   const [search, setSearch] = useState("");
+  const [menu, setMenu] = useState<MenuState>(null);
 
   const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
+
+  const allFolders = useMemo(() => {
+    if (!vault) return [];
+    const vaultFolderPaths = knownFolderPaths.filter((fp) => fp.startsWith(`${vault.path}/`));
+    const tree = buildTree(notes, vault.path, vaultFolderPaths);
+    return getAllFolderPaths(tree, vault.path);
+  }, [knownFolderPaths, notes, vault]);
 
   const filteredNotes = useMemo(() => {
     let result = activeVaultId
@@ -54,22 +67,24 @@ export function NoteListPanel() {
       selectedGrouping.type === "folder" && selectedGrouping.id
         ? selectedGrouping.id
         : vault.path;
+    const contextTag =
+      selectedGrouping.type === "tag" && selectedGrouping.id ? selectedGrouping.id : null;
     const id = ulid();
     const today = new Date().toISOString().split("T")[0];
-    const slug = `untitled-${id.slice(-8).toLowerCase()}`;
+    const slug = id.toLowerCase();
     const filePath = `${folderPath}/${slug}.md`;
     const note: Note = {
       id,
       filePath,
       fileName: `${slug}.md`,
-      content: "",
+      content: contextTag ? `#${contextTag}` : "",
       vaultId: vault.id,
       frontmatter: {
         id,
         title: "Untitled",
         created: today,
         updated: today,
-        tags: [],
+        tags: contextTag ? [contextTag] : [],
         urgent: false,
         important: false,
         state: "Prepare",
@@ -94,6 +109,53 @@ export function NoteListPanel() {
       addNote(item.note);
     } catch (e) {
       console.error("Failed to restore note:", e);
+    }
+  }
+
+  async function handlePinToggle(note: Note) {
+    const updated = { ...note, frontmatter: { ...note.frontmatter, pinned: !note.frontmatter.pinned } };
+    try {
+      await tauriCommands.writeNote(note.filePath, serializeNote(updated));
+      updateNote(updated);
+    } catch (e) {
+      console.error("Failed to toggle pin:", e);
+    }
+  }
+
+  async function handleMoveNote(note: Note, targetFolderPath: string) {
+    const newFilePath = `${targetFolderPath}/${note.fileName}`;
+    if (newFilePath === note.filePath) return;
+    try {
+      await tauriCommands.renameNote(note.filePath, newFilePath);
+      updateNote({ ...note, filePath: newFilePath });
+    } catch (e) {
+      console.error("Failed to move note:", e);
+    }
+  }
+
+  async function handleFrontmatterToggle(note: Note, field: "locked" | "unmanaged") {
+    const updated = { ...note, frontmatter: { ...note.frontmatter, [field]: !note.frontmatter[field] } };
+    try {
+      await tauriCommands.writeNote(note.filePath, serializeNote(updated));
+      updateNote(updated);
+    } catch (e) {
+      console.error(`Failed to toggle ${field}:`, e);
+    }
+  }
+
+  async function handleDeleteNote(note: Note) {
+    const ok = await confirm(
+      `Move "${note.frontmatter.title || "Untitled"}" to Trash?`,
+      { title: "Move to Trash", kind: "warning" },
+    );
+    if (!ok) return;
+    addToTrash(note);
+    if (note.id === selectedNoteId) selectNote(null);
+    removeNote(note.id);
+    try {
+      await tauriCommands.deleteNote(note.filePath);
+    } catch (e) {
+      console.error("Failed to delete note:", e);
     }
   }
 
@@ -169,7 +231,7 @@ export function NoteListPanel() {
         </button>
       </div>
 
-      {/* Note list */}
+      {/* Note list — onContextMenu is on each button to avoid conflicts with the toolbar */}
       <div className="flex-1 overflow-y-auto">
         {filteredNotes.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm opacity-40">No notes</p>
@@ -180,8 +242,42 @@ export function NoteListPanel() {
                 <button
                   type="button"
                   onClick={() => {
-                    selectNote(note.id);
-                    setView("notes");
+                    navigate({ view: "notes", selectedNoteId: note.id, selectedGrouping });
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      items: [
+                        {
+                          kind: "action",
+                          label: note.frontmatter.pinned ? "Unpin" : "Pin",
+                          onClick: () => handlePinToggle(note),
+                        },
+                        {
+                          kind: "action",
+                          label: note.frontmatter.locked ? "Unlock" : "Lock",
+                          onClick: () => handleFrontmatterToggle(note, "locked"),
+                        },
+                        {
+                          kind: "action",
+                          label: note.frontmatter.unmanaged ? "Mark Managed" : "Mark Unmanaged",
+                          onClick: () => handleFrontmatterToggle(note, "unmanaged"),
+                        },
+                        {
+                          kind: "submenu",
+                          label: "Move to…",
+                          items: allFolders.map((f) => ({
+                            label: f.label,
+                            onClick: () => handleMoveNote(note, f.path),
+                          })),
+                        },
+                        { kind: "separator" },
+                        { kind: "action", label: "Delete", danger: true, onClick: () => handleDeleteNote(note) },
+                      ],
+                    });
                   }}
                   className={`flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
                     note.id === selectedNoteId ? "bg-base-300" : "hover:bg-base-200"
@@ -206,6 +302,14 @@ export function NoteListPanel() {
           </ul>
         )}
       </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menu.items}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }

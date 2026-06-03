@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NOTE_STATES } from "../../lib/constants";
 import { useNoteStore } from "../../store/notes";
 import type { NoteFrontmatter, NoteState } from "../../types/note";
@@ -29,6 +29,9 @@ const KNOWN_FIELDS = new Set([
   "links",
   "locked",
   "pinned",
+  "unmanaged",
+  "kanbanOrder",
+  "eisenhowerOrder",
 ]);
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -37,6 +40,58 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="w-24 shrink-0 text-xs opacity-50">{label}</span>
       <div className="flex-1 text-sm">{children}</div>
     </div>
+  );
+}
+
+function TeamInput({
+  value,
+  onChange,
+}: { value: string[] | undefined; onChange: (u: Partial<NoteFrontmatter>) => void }) {
+  const [draft, setDraft] = useState(value?.join(", ") ?? "");
+  useEffect(() => { setDraft(value?.join(", ") ?? ""); }, [value]);
+  return (
+    <Row label="Team">
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() =>
+          onChange({
+            team: draft.trim()
+              ? draft.split(",").map((t) => t.trim()).filter(Boolean)
+              : undefined,
+          })
+        }
+        placeholder="CE, RL, …"
+        className="w-full bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]/50"
+      />
+    </Row>
+  );
+}
+
+function TagsInput({
+  value,
+  onChange,
+}: { value: string[]; onChange: (u: Partial<NoteFrontmatter>) => void }) {
+  const [draft, setDraft] = useState(value.join(", "));
+  useEffect(() => { setDraft(value.join(", ")); }, [value]);
+  return (
+    <Row label="Tags">
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() =>
+          onChange({
+            tags: draft.trim()
+              ? draft.split(",").map((t) => t.trim().replace(/^#/, "")).filter(Boolean)
+              : [],
+          })
+        }
+        placeholder="work, work/project"
+        className="w-full bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]/50 text-sm"
+      />
+    </Row>
   );
 }
 
@@ -228,6 +283,16 @@ export function PropertyPanel({
           Locked
         </label>
 
+        <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100">
+          <input
+            type="checkbox"
+            checked={frontmatter.unmanaged ?? false}
+            onChange={(e) => onChange({ unmanaged: e.target.checked })}
+            className="rounded accent-[var(--color-accent)]"
+          />
+          Unmanaged
+        </label>
+
         {/* Expand toggle */}
         <button
           type="button"
@@ -275,43 +340,8 @@ export function PropertyPanel({
             />
           </Row>
 
-          <Row label="Team">
-            <input
-              type="text"
-              value={frontmatter.team?.join(", ") ?? ""}
-              onChange={(e) =>
-                onChange({
-                  team: e.target.value
-                    ? e.target.value
-                        .split(",")
-                        .map((t) => t.trim())
-                        .filter(Boolean)
-                    : undefined,
-                })
-              }
-              placeholder="CE, RL, …"
-              className="w-full bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]/50"
-            />
-          </Row>
-
-          <Row label="Tags">
-            <input
-              type="text"
-              value={frontmatter.tags.join(", ")}
-              onChange={(e) =>
-                onChange({
-                  tags: e.target.value
-                    ? e.target.value
-                        .split(",")
-                        .map((t) => t.trim().replace(/^#/, ""))
-                        .filter(Boolean)
-                    : [],
-                })
-              }
-              placeholder="work, work/project"
-              className="w-full bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]/50 text-sm"
-            />
-          </Row>
+          <TeamInput value={frontmatter.team} onChange={onChange} />
+          <TagsInput value={frontmatter.tags} onChange={onChange} />
 
           <Row label="Links">
             {frontmatter.links && frontmatter.links.length > 0 ? (

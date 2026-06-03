@@ -1,12 +1,16 @@
 import { Icon } from "@iconify/react";
 import React, { useMemo, useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { addVault, removeVault } from "../../hooks/useVault";
 import { buildTree, type TreeNode } from "../../lib/file-tree";
+import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore, type TagNode } from "../../store/notes";
 import { useTrashStore } from "../../store/trash";
-import { useUIStore, type View } from "../../store/ui";
+import { useUIStore, type View, type Grouping } from "../../store/ui";
+import { ContextMenu, type ContextMenuItem } from "../sidebar/ContextMenu";
 import { SettingsModal } from "../settings/SettingsModal";
+import { ulid } from "ulid";
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "uil:dashboard" },
@@ -19,12 +23,16 @@ function FolderGroupings({
   depth = 0,
   nodes,
   noteCount,
+  onContextMenu,
+  onNavigate,
 }: {
   depth?: number;
   nodes: TreeNode[];
   noteCount: (path: string) => number;
+  onContextMenu: (e: React.MouseEvent, folderPath: string) => void;
+  onNavigate: (grouping: Grouping) => void;
 }) {
-  const { selectedGrouping, setSelectedGrouping, setView } = useUIStore();
+  const { selectedGrouping } = useUIStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const folderNodes = nodes.filter((n): n is Extract<TreeNode, { kind: "folder" }> => n.kind === "folder");
@@ -44,12 +52,13 @@ function FolderGroupings({
           <React.Fragment key={node.path}>
             <li>
               <div
-                className={`flex w-full items-center gap-1 rounded-md py-1 text-sm transition-colors ${
+                className={`flex w-full items-center gap-1 py-1 text-sm transition-colors ${
                   isActive
                     ? "bg-base-300 text-base-content"
                     : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
                 }`}
-                style={{ paddingLeft: depth * 12 + 4 }}
+                style={{ paddingLeft: depth * 12 + 8 }}
+                onContextMenu={(e) => onContextMenu(e, node.path)}
               >
                 <button
                   type="button"
@@ -73,10 +82,7 @@ function FolderGroupings({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedGrouping({ type: "folder", id: node.path });
-                    setView("notes");
-                  }}
+                  onClick={() => onNavigate({ type: "folder", id: node.path })}
                   className="flex flex-1 min-w-0 items-center gap-1.5 pr-2"
                 >
                   <Icon icon="uil:folder" className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
@@ -90,6 +96,8 @@ function FolderGroupings({
                 depth={depth + 1}
                 nodes={node.children}
                 noteCount={noteCount}
+                onContextMenu={onContextMenu}
+                onNavigate={onNavigate}
               />
             )}
           </React.Fragment>
@@ -103,12 +111,14 @@ function TagGroupings({
   tags,
   parentPath = "",
   depth = 0,
+  onNavigate,
 }: {
   tags: Record<string, TagNode>;
   parentPath?: string;
   depth?: number;
+  onNavigate: (grouping: Grouping) => void;
 }) {
-  const { selectedGrouping, setSelectedGrouping, setView } = useUIStore();
+  const { selectedGrouping } = useUIStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const entries = Object.entries(tags).sort(([a], [b]) => a.localeCompare(b));
@@ -135,12 +145,12 @@ function TagGroupings({
           <React.Fragment key={fullPath}>
             <li>
               <div
-                className={`flex w-full items-center gap-1 rounded-md py-1 text-sm transition-colors ${
+                className={`flex w-full items-center gap-1 py-1 text-sm transition-colors ${
                   isActive
                     ? "bg-base-300 text-base-content"
                     : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
                 }`}
-                style={{ paddingLeft: depth * 12 + 4 }}
+                style={{ paddingLeft: depth * 12 + 8 }}
               >
                 <button
                   type="button"
@@ -166,10 +176,7 @@ function TagGroupings({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedGrouping({ type: "tag", id: fullPath });
-                    setView("notes");
-                  }}
+                  onClick={() => onNavigate({ type: "tag", id: fullPath })}
                   className="flex flex-1 min-w-0 items-center gap-1.5 pr-2"
                 >
                   <span className="text-base-content/40">#</span>
@@ -183,6 +190,7 @@ function TagGroupings({
                 tags={node.children}
                 parentPath={fullPath}
                 depth={depth + 1}
+                onNavigate={onNavigate}
               />
             )}
           </React.Fragment>
@@ -214,11 +222,14 @@ function NewFolderRow({ onCommit }: { onCommit: (name: string) => void }) {
   );
 }
 
+type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
+
 export function LeftColumn() {
   const [showSettings, setShowSettings] = useState(false);
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
-  const { activeView, setView, selectedGrouping, setSelectedGrouping, sidebarCollapsed, setSidebarCollapsed } = useUIStore();
-  const { notes, vaults, activeVaultId, setActiveVaultId, knownFolderPaths, tagTree } = useNoteStore();
+  const [folderMenu, setFolderMenu] = useState<MenuState>(null);
+  const { activeView, setView, selectedGrouping, setSelectedGrouping, sidebarCollapsed, setSidebarCollapsed, navigate } = useUIStore();
+  const { notes, vaults, activeVaultId, setActiveVaultId, knownFolderPaths, tagTree, selectedNoteId } = useNoteStore();
   const trashCount = useTrashStore((s) => s.items.length);
 
   const activeVault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
@@ -264,7 +275,6 @@ export function LeftColumn() {
 
   async function handleRemoveVault(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    const { confirm } = await import("@tauri-apps/plugin-dialog");
     const vault = vaults.find((v) => v.id === id);
     const confirmed = await confirm(
       `Remove vault "${vault?.name}"? Notes on disk are untouched.`,
@@ -272,6 +282,84 @@ export function LeftColumn() {
     );
     if (!confirmed) return;
     await removeVault(id);
+  }
+
+  async function handleCreateNoteInFolder(folderPath: string) {
+    if (!activeVault) return;
+    const id = ulid();
+    const today = new Date().toISOString().split("T")[0];
+    const slug = id.toLowerCase();
+    const filePath = `${folderPath}/${slug}.md`;
+    const note = {
+      id,
+      filePath,
+      fileName: `${slug}.md`,
+      content: "",
+      vaultId: activeVault.id,
+      frontmatter: {
+        id,
+        title: "Untitled",
+        created: today,
+        updated: today,
+        tags: [],
+        urgent: false,
+        important: false,
+        state: "Prepare" as const,
+        blocked: false,
+      },
+    };
+    try {
+      await tauriCommands.writeNote(filePath, serializeNote(note));
+      useNoteStore.getState().addNote(note);
+      useNoteStore.getState().selectNote(id);
+      setView("notes");
+    } catch (e) {
+      console.error("Failed to create note:", e);
+    }
+  }
+
+  async function handleDeleteFolder(folderPath: string) {
+    const name = folderPath.split("/").pop();
+    const ok = await confirm(
+      `Delete folder "${name}" and all its contents? This cannot be undone.`,
+      { title: "Delete Folder", kind: "warning" },
+    );
+    if (!ok) return;
+    const { notes: allNotes, selectedNoteId, selectNote: sel, removeNote } = useNoteStore.getState();
+    for (const n of allNotes) {
+      if (n.filePath.startsWith(`${folderPath}/`)) {
+        if (n.id === selectedNoteId) sel(null);
+        removeNote(n.id);
+      }
+    }
+    try {
+      await tauriCommands.deleteFolder(folderPath);
+    } catch (e) {
+      console.error("Failed to delete folder:", e);
+    }
+  }
+
+  function handleFolderContextMenu(e: React.MouseEvent, folderPath: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setFolderMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        { kind: "action", label: "New Note Here", onClick: () => handleCreateNoteInFolder(folderPath) },
+        {
+          kind: "action",
+          label: "New Subfolder",
+          onClick: () => {
+            setNewFolderParent(folderPath);
+            setSelectedGrouping({ type: "folder", id: folderPath });
+            setView("notes");
+          },
+        },
+        { kind: "separator" },
+        { kind: "action", label: "Delete", danger: true, onClick: () => handleDeleteFolder(folderPath) },
+      ],
+    });
   }
 
   if (sidebarCollapsed) {
@@ -283,7 +371,7 @@ export function LeftColumn() {
             <button
               key={v.id}
               type="button"
-              onClick={() => { setSidebarCollapsed(false); setView(v.id); }}
+              onClick={() => { setSidebarCollapsed(false); navigate({ view: v.id, selectedNoteId, selectedGrouping }); }}
               title={v.label}
               className={`btn btn-ghost btn-xs btn-square w-full rounded-none ${activeView === v.id ? "text-base-content" : "opacity-40 hover:opacity-100"}`}
             >
@@ -323,15 +411,19 @@ export function LeftColumn() {
       className="flex flex-col border-r border-base-300"
       style={{ width: "var(--sidebar-width)", minWidth: "var(--sidebar-width)" }}
     >
-      <div className="flex flex-1 flex-col overflow-hidden p-2">
+      <div className="flex flex-1 flex-col overflow-hidden py-2">
         {/* View nav */}
-        <ul className="menu menu-sm mb-6 px-0">
+        <ul className="mb-4">
           {VIEWS.map((v) => (
             <li key={v.id}>
               <button
                 type="button"
-                onClick={() => setView(v.id)}
-                className={activeView === v.id ? "active" : ""}
+                onClick={() => navigate({ view: v.id, selectedNoteId, selectedGrouping })}
+                className={`flex w-full items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
+                  activeView === v.id
+                    ? "bg-base-300 text-base-content"
+                    : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
+                }`}
               >
                 <Icon icon={v.icon} className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{v.label}</span>
@@ -345,10 +437,14 @@ export function LeftColumn() {
           <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider opacity-40">
             Vaults
           </p>
-          <ul className="menu menu-sm px-0">
+          <ul>
             {vaults.map((vault) => (
               <li key={vault.id} className="group">
-                <div className={activeVaultId === vault.id ? "active" : ""}>
+                <div className={`flex items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
+                  activeVaultId === vault.id
+                    ? "bg-base-300 text-base-content"
+                    : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
+                }`}>
                   <button
                     type="button"
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -379,7 +475,7 @@ export function LeftColumn() {
               <button
                 type="button"
                 onClick={handleAddVault}
-                className="opacity-50 hover:opacity-100"
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-sm text-base-content/50 transition-colors hover:bg-base-200 hover:text-base-content"
               >
                 <span className="text-base leading-none">+</span>
                 <span>Add Vault</span>
@@ -411,11 +507,8 @@ export function LeftColumn() {
               <li>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedGrouping({ type: "all", id: null });
-                    setView("notes");
-                  }}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                  onClick={() => navigate({ view: "notes", selectedNoteId, selectedGrouping: { type: "all", id: null } })}
+                  className={`flex w-full items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
                     selectedGrouping.type === "all" && activeView === "notes"
                       ? "bg-base-300 text-base-content"
                       : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
@@ -445,7 +538,12 @@ export function LeftColumn() {
               )}
 
               {/* Folder tree */}
-              <FolderGroupings nodes={tree} noteCount={noteCount} />
+              <FolderGroupings
+                nodes={tree}
+                noteCount={noteCount}
+                onContextMenu={handleFolderContextMenu}
+                onNavigate={(grouping) => navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })}
+              />
             </ul>
 
             {/* Tags section */}
@@ -455,7 +553,10 @@ export function LeftColumn() {
                   Tags
                 </p>
                 <ul className="py-1">
-                  <TagGroupings tags={tagTree} />
+                  <TagGroupings
+                    tags={tagTree}
+                    onNavigate={(grouping) => navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })}
+                  />
                 </ul>
               </>
             )}
@@ -470,7 +571,7 @@ export function LeftColumn() {
                       setSelectedGrouping({ type: "trash", id: null });
                       setView("notes");
                     }}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                    className={`flex w-full items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
                       selectedGrouping.type === "trash"
                         ? "bg-base-300 text-base-content"
                         : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
@@ -508,6 +609,14 @@ export function LeftColumn() {
       </div>
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {folderMenu && (
+        <ContextMenu
+          x={folderMenu.x}
+          y={folderMenu.y}
+          items={folderMenu.items}
+          onClose={() => setFolderMenu(null)}
+        />
+      )}
     </div>
   );
 }
