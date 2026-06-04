@@ -1,5 +1,5 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { extractInlineTags, extractWikiLinks, serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
@@ -12,23 +12,28 @@ import { EisenhowerView } from "../../views/EisenhowerView";
 import { GraphView } from "../../views/GraphView";
 import { KanbanView } from "../../views/KanbanView";
 import { BacklinksPanel } from "../editor/BacklinksPanel";
+import { FindReplaceBar } from "../editor/FindReplaceBar";
 import { NoteEditor, type NoteEditorHandle } from "../editor/NoteEditor";
 import { PropertyPanel } from "../editor/PropertyPanel";
 
-function MarkdownTextarea({
-  content,
-  onSave,
-  locked,
-}: {
-  content: string;
-  onSave: (md: string) => void;
-  locked?: boolean;
-}) {
+interface MarkdownTextareaHandle {
+  textarea: HTMLTextAreaElement | null;
+  replaceContent: (newContent: string) => void;
+}
+
+const MarkdownTextarea = forwardRef<
+  MarkdownTextareaHandle,
+  { content: string; onSave: (md: string) => void; locked?: boolean }
+>(function MarkdownTextarea({ content, onSave, locked }, ref) {
   const [value, setValue] = useState(content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flush = useCallback(() => {
-    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
     onSave(value);
   }, [onSave, value]);
 
@@ -40,10 +45,26 @@ function MarkdownTextarea({
     saveTimer.current = setTimeout(() => onSave(next), 1000);
   };
 
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      get textarea() { return textareaRef.current; },
+      replaceContent(newContent: string) {
+        setValue(newContent);
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => onSave(newContent), 1000);
+      },
+    }),
+    [onSave],
+  );
 
   return (
     <textarea
+      ref={textareaRef}
       value={value}
       onChange={handleChange}
       onBlur={flush}
@@ -58,7 +79,7 @@ function MarkdownTextarea({
       }}
     />
   );
-}
+});
 
 // Extract absolute file paths from asset:// URLs embedded in markdown image tags.
 // http://asset.localhost/Users/foo/notes/assets/img.png → /Users/foo/notes/assets/img.png
@@ -84,6 +105,9 @@ export function MainPanel() {
   const { settings } = useSettingsStore();
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
   const editorRef = useRef<NoteEditorHandle>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findExpanded, setFindExpanded] = useState(false);
+  const markdownTextareaRef = useRef<MarkdownTextareaHandle>(null);
 
   const [markdownMode, setMarkdownMode] = useState(
     () => settings.defaultNoteView === "markdown",
@@ -92,7 +116,28 @@ export function MainPanel() {
   // Reset mode to default when switching notes
   useEffect(() => {
     setMarkdownMode(settings.defaultNoteView === "markdown");
+    setFindOpen(false);
+    setFindExpanded(false);
   }, [selectedNoteId, settings.defaultNoteView]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        if (!selectedNote) return;
+        e.preventDefault();
+        setFindOpen((open) => {
+          if (!open) {
+            setFindExpanded(false);
+            return true;
+          }
+          setFindExpanded(true);
+          return true;
+        });
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedNote]);
 
   async function handleSave(content: string) {
     if (!selectedNote) return;
@@ -172,7 +217,7 @@ export function MainPanel() {
     <div className="flex flex-1 flex-col overflow-hidden min-w-0">
       {activeView === "notes" &&
         (selectedNote ? (
-          <div className="flex flex-1 flex-col overflow-y-auto">
+          <div className="relative flex flex-1 flex-col overflow-y-auto">
             <PropertyPanel
               frontmatter={selectedNote.frontmatter}
               filePath={selectedNote.filePath}
@@ -185,6 +230,7 @@ export function MainPanel() {
             {markdownMode ? (
               <MarkdownTextarea
                 key={selectedNote.id}
+                ref={markdownTextareaRef}
                 content={selectedNote.content}
                 onSave={handleSave}
                 locked={selectedNote.frontmatter.locked}
@@ -195,6 +241,20 @@ export function MainPanel() {
                 note={selectedNote}
                 onSave={handleSave}
                 locked={selectedNote.frontmatter.locked}
+                findOpen={findOpen}
+              />
+            )}
+            {findOpen && (
+              <FindReplaceBar
+                mode={markdownMode ? "markdown" : "editor"}
+                editor={markdownMode ? null : (editorRef.current?.getEditor() ?? null)}
+                textareaHandle={markdownMode ? markdownTextareaRef.current : null}
+                expanded={findExpanded}
+                onExpand={() => setFindExpanded(true)}
+                onClose={() => {
+                  setFindOpen(false);
+                  setFindExpanded(false);
+                }}
               />
             )}
             <BacklinksPanel note={selectedNote} />
