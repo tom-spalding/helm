@@ -216,6 +216,8 @@ import type { Note } from "../../types/note";
 import { WikiLinkExtension } from "./WikiLink";
 import { FindReplaceExtension } from "./findReplaceExtension";
 
+const lowlight = createLowlight(common);
+
 interface SuggestionPopup {
   items: Note[];
   selectedIndex: number;
