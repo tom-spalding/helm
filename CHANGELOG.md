@@ -1,3 +1,10 @@
+## v0.6.0 — 2026-06-12
+
+- Find (#6)
+- feat: inline code block language selector with typeahead
+- feat: add Cmd+F find & replace (#5)
+- release: add Helm_0.5.0_aarch64.dmg
+
 ## v0.5.0 — 2026-06-03
 
 - June updates: tables, context menus, sidebar polish, unmanaged flag, nav history (#4)
