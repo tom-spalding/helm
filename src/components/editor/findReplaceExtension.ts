@@ -187,7 +187,10 @@ export const FindReplaceExtension = Extension.create({
           const s = findReplacePluginKey.getState(state);
           if (!s?.isOpen || s.matches.length === 0) return false;
           if (dispatch) {
-            tr.setMeta(findReplacePluginKey, { type: "NAVIGATE", direction: 1 } as FindReplaceAction);
+            tr.setMeta(findReplacePluginKey, {
+              type: "NAVIGATE",
+              direction: 1,
+            } as FindReplaceAction);
             dispatch(tr);
             setTimeout(() => {
               document
@@ -204,7 +207,10 @@ export const FindReplaceExtension = Extension.create({
           const s = findReplacePluginKey.getState(state);
           if (!s?.isOpen || s.matches.length === 0) return false;
           if (dispatch) {
-            tr.setMeta(findReplacePluginKey, { type: "NAVIGATE", direction: -1 } as FindReplaceAction);
+            tr.setMeta(findReplacePluginKey, {
+              type: "NAVIGATE",
+              direction: -1,
+            } as FindReplaceAction);
             dispatch(tr);
             setTimeout(() => {
               document
@@ -241,7 +247,9 @@ export const FindReplaceExtension = Extension.create({
           const s = findReplacePluginKey.getState(state);
           if (!s || s.matches.length === 0) return false;
           if (dispatch) {
-            [...s.matches].reverse().forEach(({ from, to }) => tr.insertText(replacement, from, to));
+            [...s.matches]
+              .reverse()
+              .forEach(({ from, to }) => tr.insertText(replacement, from, to));
             tr.setMeta(findReplacePluginKey, {
               type: "FIND",
               query: s.query,

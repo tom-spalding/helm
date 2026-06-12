@@ -70,7 +70,9 @@ function NoteCard({
         )}
         <div className="flex flex-wrap gap-1">
           {note.frontmatter.tags.slice(0, 3).map((t) => (
-            <span key={t} className="badge badge-ghost badge-sm">#{t}</span>
+            <span key={t} className="badge badge-ghost badge-sm">
+              #{t}
+            </span>
           ))}
         </div>
       </div>
@@ -133,9 +135,7 @@ function Quadrant({
             <NoteCard key={n.id} note={n} index={index} quadrant={id} />
           ))}
         </div>
-        {notes.length === 0 && (
-          <p className="text-xs opacity-30 mt-auto">Drop here</p>
-        )}
+        {notes.length === 0 && <p className="text-xs opacity-30 mt-auto">Drop here</p>}
       </div>
     </div>
   );
@@ -147,7 +147,12 @@ export function EisenhowerView() {
   const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
 
   const activeNotes = useMemo(
-    () => notes.filter((n) => !n.frontmatter.unmanaged && (n.frontmatter.state === "Prepare" || n.frontmatter.state === "Doing")),
+    () =>
+      notes.filter(
+        (n) =>
+          !n.frontmatter.unmanaged &&
+          (n.frontmatter.state === "Prepare" || n.frontmatter.state === "Doing"),
+      ),
     [notes],
   );
 

@@ -45,14 +45,19 @@ const MarkdownTextarea = forwardRef<
     saveTimer.current = setTimeout(() => onSave(next), 1000);
   };
 
-  useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    [],
+  );
 
   useImperativeHandle(
     ref,
     () => ({
-      get textarea() { return textareaRef.current; },
+      get textarea() {
+        return textareaRef.current;
+      },
       replaceContent(newContent: string) {
         setValue(newContent);
         if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -109,9 +114,7 @@ export function MainPanel() {
   const [findExpanded, setFindExpanded] = useState(false);
   const markdownTextareaRef = useRef<MarkdownTextareaHandle>(null);
 
-  const [markdownMode, setMarkdownMode] = useState(
-    () => settings.defaultNoteView === "markdown",
-  );
+  const [markdownMode, setMarkdownMode] = useState(() => settings.defaultNoteView === "markdown");
 
   // Reset mode to default when switching notes
   useEffect(() => {

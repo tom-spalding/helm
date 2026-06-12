@@ -51,15 +51,15 @@ function KanbanCard({ note, index, column }: { note: Note; index: number; column
       }`}
     >
       <div className="card-body">
-        <p className="card-title text-sm font-medium">
-          {note.frontmatter.title || "Untitled"}
-        </p>
+        <p className="card-title text-sm font-medium">{note.frontmatter.title || "Untitled"}</p>
         {note.frontmatter.blocked && (
           <span className="badge badge-error badge-soft badge-sm">⊘ Blocked</span>
         )}
         <div className="flex flex-wrap gap-1">
           {note.frontmatter.tags.slice(0, 2).map((t) => (
-            <span key={t} className="badge badge-ghost badge-sm">{t}</span>
+            <span key={t} className="badge badge-ghost badge-sm">
+              {t}
+            </span>
           ))}
         </div>
       </div>

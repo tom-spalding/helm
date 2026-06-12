@@ -194,9 +194,7 @@ export function useVault() {
               } else {
                 // Check if this is an external rename: same ULID, different path.
                 // In that case update in-place rather than adding a duplicate.
-                const existingById = note.id
-                  ? store.notes.find((n) => n.id === note.id)
-                  : null;
+                const existingById = note.id ? store.notes.find((n) => n.id === note.id) : null;
                 if (existingById) {
                   store.updateNote({ ...note, vaultId: existingById.vaultId });
                 } else {

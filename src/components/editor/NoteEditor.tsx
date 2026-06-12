@@ -10,7 +10,13 @@ import TableRow from "@tiptap/extension-table-row";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { TextSelection } from "@tiptap/pm/state";
-import { EditorContent, Extension, InputRule, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
+import {
+  EditorContent,
+  Extension,
+  InputRule,
+  ReactNodeViewRenderer,
+  useEditor,
+} from "@tiptap/react";
 import { CodeBlockView } from "./CodeBlockView";
 import StarterKit from "@tiptap/starter-kit";
 import { lowlight } from "../../lib/lowlight";
@@ -215,8 +221,6 @@ import { useSettingsStore } from "../../store/settings";
 import type { Note } from "../../types/note";
 import { WikiLinkExtension } from "./WikiLink";
 import { FindReplaceExtension } from "./findReplaceExtension";
-
-const lowlight = createLowlight(common);
 
 interface SuggestionPopup {
   items: Note[];

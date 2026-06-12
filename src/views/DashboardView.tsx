@@ -97,7 +97,10 @@ function SummaryChip({ value, label, color, active, onClick }: ChipProps) {
       }`}
     >
       <div className="stat-value text-2xl">{value}</div>
-      <div className="stat-title text-xs" style={{ color: `color-mix(in oklab, ${color} 80%, var(--color-base-content))` }}>
+      <div
+        className="stat-title text-xs"
+        style={{ color: `color-mix(in oklab, ${color} 80%, var(--color-base-content))` }}
+      >
         {label}
       </div>
     </button>
@@ -130,8 +133,9 @@ export function DashboardView() {
   const { navigate, selectedGrouping } = useUIStore();
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
 
-  const subset = filterNotes(notes, activeFilter)
-    .sort((a, b) => b.frontmatter.updated.localeCompare(a.frontmatter.updated));
+  const subset = filterNotes(notes, activeFilter).sort((a, b) =>
+    b.frontmatter.updated.localeCompare(a.frontmatter.updated),
+  );
 
   // Charts derived from the active subset
   const tagCounts: Record<string, number> = {};
@@ -305,7 +309,9 @@ export function DashboardView() {
                   />
                   <Legend
                     formatter={(v) => (
-                      <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>{v}</span>
+                      <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>
+                        {v}
+                      </span>
                     )}
                   />
                 </PieChart>

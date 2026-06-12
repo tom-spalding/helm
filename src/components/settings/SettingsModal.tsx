@@ -112,7 +112,8 @@ function SliderRow({ label, value, min, max, step, unit, onChange }: SliderRowPr
         className="range range-accent range-sm flex-1"
       />
       <span className="w-16 shrink-0 text-right text-sm tabular-nums">
-        {value}{unit}
+        {value}
+        {unit}
       </span>
     </div>
   );
@@ -265,8 +266,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // biome-ignore lint/a11y/noStaticElementInteractions: modal backdrop captures clicks outside the dialog
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-16"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
     >
       <div
         className="flex flex-col rounded-2xl border border-base-300 bg-base-200 shadow-2xl"

@@ -15,7 +15,17 @@ type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function NoteListPanel() {
   const { selectedGrouping, setView, navigate } = useUIStore();
-  const { notes, selectedNoteId, selectNote, vaults, activeVaultId, addNote, updateNote, removeNote, knownFolderPaths } = useNoteStore();
+  const {
+    notes,
+    selectedNoteId,
+    selectNote,
+    vaults,
+    activeVaultId,
+    addNote,
+    updateNote,
+    removeNote,
+    knownFolderPaths,
+  } = useNoteStore();
   const { items: trashItems, removeFromTrash, permanentlyDelete, addToTrash } = useTrashStore();
   const [search, setSearch] = useState("");
   const [menu, setMenu] = useState<MenuState>(null);
@@ -30,9 +40,7 @@ export function NoteListPanel() {
   }, [knownFolderPaths, notes, vault]);
 
   const filteredNotes = useMemo(() => {
-    let result = activeVaultId
-      ? notes.filter((n) => n.vaultId === activeVaultId)
-      : notes;
+    let result = activeVaultId ? notes.filter((n) => n.vaultId === activeVaultId) : notes;
 
     if (selectedGrouping.type === "folder" && selectedGrouping.id) {
       const prefix = `${selectedGrouping.id}/`;
@@ -64,9 +72,7 @@ export function NoteListPanel() {
   async function handleNewNote() {
     if (!vault) return;
     const folderPath =
-      selectedGrouping.type === "folder" && selectedGrouping.id
-        ? selectedGrouping.id
-        : vault.path;
+      selectedGrouping.type === "folder" && selectedGrouping.id ? selectedGrouping.id : vault.path;
     const contextTag =
       selectedGrouping.type === "tag" && selectedGrouping.id ? selectedGrouping.id : null;
     const id = ulid();
@@ -113,7 +119,10 @@ export function NoteListPanel() {
   }
 
   async function handlePinToggle(note: Note) {
-    const updated = { ...note, frontmatter: { ...note.frontmatter, pinned: !note.frontmatter.pinned } };
+    const updated = {
+      ...note,
+      frontmatter: { ...note.frontmatter, pinned: !note.frontmatter.pinned },
+    };
     try {
       await tauriCommands.writeNote(note.filePath, serializeNote(updated));
       updateNote(updated);
@@ -134,7 +143,10 @@ export function NoteListPanel() {
   }
 
   async function handleFrontmatterToggle(note: Note, field: "locked" | "unmanaged") {
-    const updated = { ...note, frontmatter: { ...note.frontmatter, [field]: !note.frontmatter[field] } };
+    const updated = {
+      ...note,
+      frontmatter: { ...note.frontmatter, [field]: !note.frontmatter[field] },
+    };
     try {
       await tauriCommands.writeNote(note.filePath, serializeNote(updated));
       updateNote(updated);
@@ -144,10 +156,10 @@ export function NoteListPanel() {
   }
 
   async function handleDeleteNote(note: Note) {
-    const ok = await confirm(
-      `Move "${note.frontmatter.title || "Untitled"}" to Trash?`,
-      { title: "Move to Trash", kind: "warning" },
-    );
+    const ok = await confirm(`Move "${note.frontmatter.title || "Untitled"}" to Trash?`, {
+      title: "Move to Trash",
+      kind: "warning",
+    });
     if (!ok) return;
     addToTrash(note);
     if (note.id === selectedNoteId) selectNote(null);
@@ -275,7 +287,12 @@ export function NoteListPanel() {
                           })),
                         },
                         { kind: "separator" },
-                        { kind: "action", label: "Delete", danger: true, onClick: () => handleDeleteNote(note) },
+                        {
+                          kind: "action",
+                          label: "Delete",
+                          danger: true,
+                          onClick: () => handleDeleteNote(note),
+                        },
                       ],
                     });
                   }}
@@ -303,12 +320,7 @@ export function NoteListPanel() {
         )}
       </div>
       {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={menu.items}
-          onClose={() => setMenu(null)}
-        />
+        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
       )}
     </div>
   );

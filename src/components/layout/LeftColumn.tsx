@@ -35,7 +35,9 @@ function FolderGroupings({
   const { selectedGrouping } = useUIStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const folderNodes = nodes.filter((n): n is Extract<TreeNode, { kind: "folder" }> => n.kind === "folder");
+  const folderNodes = nodes.filter(
+    (n): n is Extract<TreeNode, { kind: "folder" }> => n.kind === "folder",
+  );
 
   if (folderNodes.length === 0) return null;
 
@@ -43,8 +45,7 @@ function FolderGroupings({
     <>
       {folderNodes.map((node) => {
         const isOpen = !collapsed.has(node.path);
-        const isActive =
-          selectedGrouping.type === "folder" && selectedGrouping.id === node.path;
+        const isActive = selectedGrouping.type === "folder" && selectedGrouping.id === node.path;
         const count = noteCount(node.path);
         const hasSubfolders = node.children.some((c) => c.kind === "folder");
 
@@ -85,7 +86,11 @@ function FolderGroupings({
                   onClick={() => onNavigate({ type: "folder", id: node.path })}
                   className="flex flex-1 min-w-0 items-center gap-1.5 pr-2"
                 >
-                  <Icon icon="uil:folder" className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                  <Icon
+                    icon="uil:folder"
+                    className="h-3.5 w-3.5 shrink-0 opacity-60"
+                    aria-hidden="true"
+                  />
                   <span className="flex-1 truncate text-left">{node.name}</span>
                   {count > 0 && <span className="shrink-0 text-xs opacity-40">{count}</span>}
                 </button>
@@ -203,7 +208,9 @@ function TagGroupings({
 function NewFolderRow({ onCommit }: { onCommit: (name: string) => void }) {
   const committed = React.useRef(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => { inputRef.current?.focus(); }, []);
+  React.useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
   return (
     <div className="flex items-center gap-1.5 py-1" style={{ paddingLeft: 28 }}>
       <Icon icon="uil:folder" className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
@@ -212,11 +219,19 @@ function NewFolderRow({ onCommit }: { onCommit: (name: string) => void }) {
         placeholder="folder name"
         className="flex-1 rounded bg-base-100 px-1 text-sm outline outline-1 outline-accent"
         onKeyDown={(e) => {
-          if (e.key === "Enter") { committed.current = true; onCommit((e.target as HTMLInputElement).value.trim()); }
-          if (e.key === "Escape") { committed.current = true; onCommit(""); }
+          if (e.key === "Enter") {
+            committed.current = true;
+            onCommit((e.target as HTMLInputElement).value.trim());
+          }
+          if (e.key === "Escape") {
+            committed.current = true;
+            onCommit("");
+          }
           e.stopPropagation();
         }}
-        onBlur={(e) => { if (!committed.current) onCommit(e.target.value.trim()); }}
+        onBlur={(e) => {
+          if (!committed.current) onCommit(e.target.value.trim());
+        }}
       />
     </div>
   );
@@ -228,17 +243,31 @@ export function LeftColumn() {
   const [showSettings, setShowSettings] = useState(false);
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
   const [folderMenu, setFolderMenu] = useState<MenuState>(null);
-  const { activeView, setView, selectedGrouping, setSelectedGrouping, sidebarCollapsed, setSidebarCollapsed, navigate } = useUIStore();
-  const { notes, vaults, activeVaultId, setActiveVaultId, knownFolderPaths, tagTree, selectedNoteId } = useNoteStore();
+  const {
+    activeView,
+    setView,
+    selectedGrouping,
+    setSelectedGrouping,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    navigate,
+  } = useUIStore();
+  const {
+    notes,
+    vaults,
+    activeVaultId,
+    setActiveVaultId,
+    knownFolderPaths,
+    tagTree,
+    selectedNoteId,
+  } = useNoteStore();
   const trashCount = useTrashStore((s) => s.items.length);
 
   const activeVault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
 
   const vaultFolderPaths = useMemo(
     () =>
-      activeVault
-        ? knownFolderPaths.filter((fp) => fp.startsWith(`${activeVault.path}/`))
-        : [],
+      activeVault ? knownFolderPaths.filter((fp) => fp.startsWith(`${activeVault.path}/`)) : [],
     [knownFolderPaths, activeVault],
   );
 
@@ -248,8 +277,7 @@ export function LeftColumn() {
   );
 
   const tree = useMemo(
-    () =>
-      activeVault ? buildTree(vaultNotes, activeVault.path, vaultFolderPaths) : [],
+    () => (activeVault ? buildTree(vaultNotes, activeVault.path, vaultFolderPaths) : []),
     [vaultNotes, activeVault, vaultFolderPaths],
   );
 
@@ -276,10 +304,10 @@ export function LeftColumn() {
   async function handleRemoveVault(id: string, e: React.MouseEvent) {
     e.stopPropagation();
     const vault = vaults.find((v) => v.id === id);
-    const confirmed = await confirm(
-      `Remove vault "${vault?.name}"? Notes on disk are untouched.`,
-      { title: "Remove Vault", kind: "warning" },
-    );
+    const confirmed = await confirm(`Remove vault "${vault?.name}"? Notes on disk are untouched.`, {
+      title: "Remove Vault",
+      kind: "warning",
+    });
     if (!confirmed) return;
     await removeVault(id);
   }
@@ -325,7 +353,12 @@ export function LeftColumn() {
       { title: "Delete Folder", kind: "warning" },
     );
     if (!ok) return;
-    const { notes: allNotes, selectedNoteId, selectNote: sel, removeNote } = useNoteStore.getState();
+    const {
+      notes: allNotes,
+      selectedNoteId,
+      selectNote: sel,
+      removeNote,
+    } = useNoteStore.getState();
     for (const n of allNotes) {
       if (n.filePath.startsWith(`${folderPath}/`)) {
         if (n.id === selectedNoteId) sel(null);
@@ -346,7 +379,11 @@ export function LeftColumn() {
       x: e.clientX,
       y: e.clientY,
       items: [
-        { kind: "action", label: "New Note Here", onClick: () => handleCreateNoteInFolder(folderPath) },
+        {
+          kind: "action",
+          label: "New Note Here",
+          onClick: () => handleCreateNoteInFolder(folderPath),
+        },
         {
           kind: "action",
           label: "New Subfolder",
@@ -357,7 +394,12 @@ export function LeftColumn() {
           },
         },
         { kind: "separator" },
-        { kind: "action", label: "Delete", danger: true, onClick: () => handleDeleteFolder(folderPath) },
+        {
+          kind: "action",
+          label: "Delete",
+          danger: true,
+          onClick: () => handleDeleteFolder(folderPath),
+        },
       ],
     });
   }
@@ -371,7 +413,10 @@ export function LeftColumn() {
             <button
               key={v.id}
               type="button"
-              onClick={() => { setSidebarCollapsed(false); navigate({ view: v.id, selectedNoteId, selectedGrouping }); }}
+              onClick={() => {
+                setSidebarCollapsed(false);
+                navigate({ view: v.id, selectedNoteId, selectedGrouping });
+              }}
               title={v.label}
               className={`btn btn-ghost btn-xs btn-square w-full rounded-none ${activeView === v.id ? "text-base-content" : "opacity-40 hover:opacity-100"}`}
             >
@@ -440,11 +485,13 @@ export function LeftColumn() {
           <ul>
             {vaults.map((vault) => (
               <li key={vault.id} className="group">
-                <div className={`flex items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
-                  activeVaultId === vault.id
-                    ? "bg-base-300 text-base-content"
-                    : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
-                }`}>
+                <div
+                  className={`flex items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
+                    activeVaultId === vault.id
+                      ? "bg-base-300 text-base-content"
+                      : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
+                  }`}
+                >
                   <button
                     type="button"
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -507,7 +554,13 @@ export function LeftColumn() {
               <li>
                 <button
                   type="button"
-                  onClick={() => navigate({ view: "notes", selectedNoteId, selectedGrouping: { type: "all", id: null } })}
+                  onClick={() =>
+                    navigate({
+                      view: "notes",
+                      selectedNoteId,
+                      selectedGrouping: { type: "all", id: null },
+                    })
+                  }
                   className={`flex w-full items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
                     selectedGrouping.type === "all" && activeView === "notes"
                       ? "bg-base-300 text-base-content"
@@ -542,7 +595,9 @@ export function LeftColumn() {
                 nodes={tree}
                 noteCount={noteCount}
                 onContextMenu={handleFolderContextMenu}
-                onNavigate={(grouping) => navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })}
+                onNavigate={(grouping) =>
+                  navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })
+                }
               />
             </ul>
 
@@ -555,7 +610,9 @@ export function LeftColumn() {
                 <ul className="py-1">
                   <TagGroupings
                     tags={tagTree}
-                    onNavigate={(grouping) => navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })}
+                    onNavigate={(grouping) =>
+                      navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })
+                    }
                   />
                 </ul>
               </>
@@ -577,7 +634,11 @@ export function LeftColumn() {
                         : "text-base-content/60 hover:bg-base-200 hover:text-base-content"
                     }`}
                   >
-                    <Icon icon="uil:trash-alt" className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />
+                    <Icon
+                      icon="uil:trash-alt"
+                      className="h-4 w-4 shrink-0 opacity-60"
+                      aria-hidden="true"
+                    />
                     <span className="flex-1 text-left">Trash</span>
                     {trashCount > 0 && <span className="text-xs opacity-40">{trashCount}</span>}
                   </button>

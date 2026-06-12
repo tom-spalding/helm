@@ -225,7 +225,7 @@ body {
   background: var(--color-surface, var(--color-base-200));
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 8rem;
   z-index: 50;
 }
