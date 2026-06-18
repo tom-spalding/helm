@@ -1,4 +1,5 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { extractInlineTags, extractWikiLinks, serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
@@ -37,6 +38,41 @@ const MarkdownTextarea = forwardRef<
     onSave(value);
   }, [onSave, value]);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!e.metaKey && !e.ctrlKey) return;
+    const ta = e.currentTarget;
+    const { selectionStart: start, selectionEnd: end, value: val } = ta;
+
+    type Wrap = [string, string];
+    let wrap: Wrap | null = null;
+
+    if (!e.shiftKey) {
+      if (e.key === "b") wrap = ["**", "**"];
+      else if (e.key === "i") wrap = ["*", "*"];
+      else if (e.key === "e") wrap = ["`", "`"];
+      else if (e.key === "u") wrap = ["<u>", "</u>"];
+    } else {
+      if (e.key === "S") wrap = ["~~", "~~"];
+      else if (e.key === "H") wrap = ["==", "=="];
+    }
+
+    if (!wrap) return;
+    e.preventDefault();
+
+    const [prefix, suffix] = wrap;
+    const selected = val.slice(start, end);
+    const next = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
+    setValue(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => onSave(next), 1000);
+
+    // Restore selection inside the wrapping characters
+    requestAnimationFrame(() => {
+      ta.selectionStart = start + prefix.length;
+      ta.selectionEnd = end + prefix.length;
+    });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (locked) return;
     const next = e.target.value;
@@ -72,6 +108,7 @@ const MarkdownTextarea = forwardRef<
       ref={textareaRef}
       value={value}
       onChange={handleChange}
+      onKeyDown={handleKeyDown}
       onBlur={flush}
       readOnly={locked}
       spellCheck={false}
@@ -105,7 +142,7 @@ function extractAssetPaths(content: string): Set<string> {
 }
 
 export function MainPanel() {
-  const { activeView } = useUIStore();
+  const { activeView, markdownMode, setMarkdownMode, toggleMarkdownMode } = useUIStore();
   const { notes, selectedNoteId, updateNote, removeNote, selectNote } = useNoteStore();
   const { settings } = useSettingsStore();
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
@@ -114,14 +151,12 @@ export function MainPanel() {
   const [findExpanded, setFindExpanded] = useState(false);
   const markdownTextareaRef = useRef<MarkdownTextareaHandle>(null);
 
-  const [markdownMode, setMarkdownMode] = useState(() => settings.defaultNoteView === "markdown");
-
   // Reset mode to default when switching notes
   useEffect(() => {
     setMarkdownMode(settings.defaultNoteView === "markdown");
     setFindOpen(false);
     setFindExpanded(false);
-  }, [selectedNoteId, settings.defaultNoteView]);
+  }, [selectedNoteId, settings.defaultNoteView, setMarkdownMode]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -138,9 +173,27 @@ export function MainPanel() {
         });
       }
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [selectedNote]);
+
+  useEffect(() => {
+    const unlisteners: Array<() => void> = [];
+    (async () => {
+      unlisteners.push(
+        await listen<number>("format-heading", (event) => {
+          const level = event.payload as 1 | 2 | 3 | 4 | 5 | 6;
+          editorRef.current?.getEditor()?.chain().focus().toggleHeading({ level }).run();
+        }),
+      );
+      unlisteners.push(
+        await listen("format-paragraph", () => {
+          editorRef.current?.getEditor()?.chain().focus().setParagraph().run();
+        }),
+      );
+    })();
+    return () => unlisteners.forEach((fn) => fn());
+  }, []);
 
   async function handleSave(content: string) {
     if (!selectedNote) return;
@@ -228,7 +281,7 @@ export function MainPanel() {
               onTitleTab={() => editorRef.current?.focus()}
               onDelete={selectedNote.frontmatter.locked ? undefined : handleDelete}
               markdownMode={markdownMode}
-              onToggleMarkdown={() => setMarkdownMode((v) => !v)}
+              onToggleMarkdown={toggleMarkdownMode}
             />
             {markdownMode ? (
               <MarkdownTextarea
