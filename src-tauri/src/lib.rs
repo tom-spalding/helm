@@ -138,11 +138,6 @@ pub fn run() {
             }
             let theme_submenu = theme_submenu.build()?;
 
-            let toggle_markdown = MenuItemBuilder::new("Toggle Markdown Mode")
-                .id("toggle_markdown")
-                .accelerator("CmdOrCtrl+M")
-                .build(app)?;
-
             let font_increase = MenuItemBuilder::new("Increase Font Size")
                 .id("font_size_increase")
                 .accelerator("CmdOrCtrl+=")
@@ -159,8 +154,6 @@ pub fn run() {
                 .build(app)?;
 
             let view_menu = SubmenuBuilder::new(app, "View")
-                .item(&toggle_markdown)
-                .separator()
                 .item(&theme_submenu)
                 .separator()
                 .item(&font_increase)
@@ -194,7 +187,6 @@ pub fn run() {
                 let id = event.id().as_ref();
                 match id {
                     "new_note" => { let _ = app_handle.emit("new-note", ()); }
-                    "toggle_markdown" => { let _ = app_handle.emit("toggle-markdown", ()); }
                     "open_settings" => { let _ = app_handle.emit("open-settings", ()); }
                     "add_vault" => { let _ = app_handle.emit("add-vault", ()); }
                     "mcp_setup" => { let _ = app_handle.emit("show-mcp-setup", ()); }
