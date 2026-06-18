@@ -64,6 +64,46 @@ pub fn run() {
                 .item(&PredefinedMenuItem::select_all(app, None)?)
                 .build()?;
 
+            // ── Format menu ───────────────────────────────────────────────
+            let heading_1 = MenuItemBuilder::new("Heading 1")
+                .id("heading_1")
+                .accelerator("CmdOrCtrl+1")
+                .build(app)?;
+            let heading_2 = MenuItemBuilder::new("Heading 2")
+                .id("heading_2")
+                .accelerator("CmdOrCtrl+2")
+                .build(app)?;
+            let heading_3 = MenuItemBuilder::new("Heading 3")
+                .id("heading_3")
+                .accelerator("CmdOrCtrl+3")
+                .build(app)?;
+            let heading_4 = MenuItemBuilder::new("Heading 4")
+                .id("heading_4")
+                .accelerator("CmdOrCtrl+4")
+                .build(app)?;
+            let heading_5 = MenuItemBuilder::new("Heading 5")
+                .id("heading_5")
+                .accelerator("CmdOrCtrl+5")
+                .build(app)?;
+            let heading_6 = MenuItemBuilder::new("Heading 6")
+                .id("heading_6")
+                .accelerator("CmdOrCtrl+6")
+                .build(app)?;
+            let paragraph_fmt = MenuItemBuilder::new("Paragraph")
+                .id("paragraph_fmt")
+                .build(app)?;
+
+            let format_menu = SubmenuBuilder::new(app, "Format")
+                .item(&heading_1)
+                .item(&heading_2)
+                .item(&heading_3)
+                .item(&heading_4)
+                .item(&heading_5)
+                .item(&heading_6)
+                .separator()
+                .item(&paragraph_fmt)
+                .build()?;
+
             // ── View > Theme submenu ──────────────────────────────────────
             let theme_defs = [
                 ("light", "Light"),
@@ -98,6 +138,11 @@ pub fn run() {
             }
             let theme_submenu = theme_submenu.build()?;
 
+            let toggle_markdown = MenuItemBuilder::new("Toggle Markdown Mode")
+                .id("toggle_markdown")
+                .accelerator("CmdOrCtrl+M")
+                .build(app)?;
+
             let font_increase = MenuItemBuilder::new("Increase Font Size")
                 .id("font_size_increase")
                 .accelerator("CmdOrCtrl+=")
@@ -114,6 +159,8 @@ pub fn run() {
                 .build(app)?;
 
             let view_menu = SubmenuBuilder::new(app, "View")
+                .item(&toggle_markdown)
+                .separator()
                 .item(&theme_submenu)
                 .separator()
                 .item(&font_increase)
@@ -135,6 +182,7 @@ pub fn run() {
                 .item(&app_menu)
                 .item(&file_menu)
                 .item(&edit_menu)
+                .item(&format_menu)
                 .item(&view_menu)
                 .item(&help_menu)
                 .build()?;
@@ -146,12 +194,20 @@ pub fn run() {
                 let id = event.id().as_ref();
                 match id {
                     "new_note" => { let _ = app_handle.emit("new-note", ()); }
+                    "toggle_markdown" => { let _ = app_handle.emit("toggle-markdown", ()); }
                     "open_settings" => { let _ = app_handle.emit("open-settings", ()); }
                     "add_vault" => { let _ = app_handle.emit("add-vault", ()); }
                     "mcp_setup" => { let _ = app_handle.emit("show-mcp-setup", ()); }
                     "font_size_increase" => { let _ = app_handle.emit("font-size-change", "increase"); }
                     "font_size_decrease" => { let _ = app_handle.emit("font-size-change", "decrease"); }
                     "font_size_reset" => { let _ = app_handle.emit("font-size-change", "reset"); }
+                    "heading_1" => { let _ = app_handle.emit("format-heading", 1u8); }
+                    "heading_2" => { let _ = app_handle.emit("format-heading", 2u8); }
+                    "heading_3" => { let _ = app_handle.emit("format-heading", 3u8); }
+                    "heading_4" => { let _ = app_handle.emit("format-heading", 4u8); }
+                    "heading_5" => { let _ = app_handle.emit("format-heading", 5u8); }
+                    "heading_6" => { let _ = app_handle.emit("format-heading", 6u8); }
+                    "paragraph_fmt" => { let _ = app_handle.emit("format-paragraph", ()); }
                     other if other.starts_with("set_theme_") => {
                         let theme_id = &other["set_theme_".len()..];
                         let _ = app_handle.emit("set-theme", theme_id);
