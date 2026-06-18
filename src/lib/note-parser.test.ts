@@ -144,6 +144,30 @@ describe("extractInlineTags", () => {
   it("returns empty array for empty content", () => {
     expect(extractInlineTags("")).toEqual([]);
   });
+
+  it("ignores hex color codes (6-digit)", () => {
+    expect(extractInlineTags("color: #ff0000")).toEqual([]);
+    expect(extractInlineTags("bg #aabbcc text")).toEqual([]);
+  });
+
+  it("ignores hex color codes (3-digit)", () => {
+    expect(extractInlineTags("color: #fff")).toEqual([]);
+    expect(extractInlineTags("#abc")).toEqual([]);
+  });
+
+  it("does not ignore non-hex tags that happen to be short", () => {
+    expect(extractInlineTags("#work")).toEqual(["work"]);
+    expect(extractInlineTags("#rfl")).toEqual(["rfl"]);
+  });
+
+  it("ignores tags inside fenced code blocks", () => {
+    const content = "hello\n```css\n.foo { color: #ff0000; }\n```\n#work";
+    expect(extractInlineTags(content)).toEqual(["work"]);
+  });
+
+  it("ignores tags inside inline code", () => {
+    expect(extractInlineTags("use `#tag` syntax and #real")).toEqual(["real"]);
+  });
 });
 
 describe("parseNote edge cases", () => {

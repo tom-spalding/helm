@@ -3,7 +3,7 @@
  * Displays summary chips for Eisenhower quadrants, tag/state/team distribution
  * charts, and a filterable note list. Clicking a chip filters all content to that subset.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { NOTE_STATES } from "../lib/constants";
 import { useNoteStore } from "../store/notes";
@@ -132,6 +132,13 @@ export function DashboardView() {
   const { notes } = useNoteStore();
   const { navigate, selectedGrouping } = useUIStore();
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
+  const [resizeKey, setResizeKey] = useState(0);
+
+  useEffect(() => {
+    const handler = () => setResizeKey((k) => k + 1);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   const subset = filterNotes(notes, activeFilter).sort((a, b) =>
     b.frontmatter.updated.localeCompare(a.frontmatter.updated),
@@ -245,7 +252,7 @@ export function DashboardView() {
             <div className="card-body p-4">
               <p className="card-title text-sm">Tag Distribution</p>
               {tagData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer key={resizeKey} width="100%" height={220}>
                   <PieChart>
                     <Pie
                       data={tagData}
@@ -285,7 +292,7 @@ export function DashboardView() {
           <div className="card bg-base-200">
             <div className="card-body p-4">
               <p className="card-title text-sm">State Distribution</p>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer key={resizeKey} width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={stateData}
@@ -323,7 +330,7 @@ export function DashboardView() {
             <div className="card bg-base-200">
               <div className="card-body p-4">
                 <p className="card-title text-sm">Team Distribution</p>
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer key={resizeKey} width="100%" height={220}>
                   <PieChart>
                     <Pie
                       data={teamData}

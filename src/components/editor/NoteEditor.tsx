@@ -166,6 +166,23 @@ const TaskItemMarkdown = TaskItem.extend({
   },
 });
 
+// Convert a heading to a paragraph when Backspace is pressed at position 0.
+// Without this, pressing Backspace at the start of a heading is a no-op,
+// leaving the user unable to demote a heading without switching to raw markdown.
+const HeadingKeyboardFix = Extension.create({
+  name: "headingKeyboardFix",
+  addKeyboardShortcuts() {
+    return {
+      Backspace: ({ editor }) => {
+        const { $from } = editor.state.selection;
+        if ($from.parent.type.name !== "heading") return false;
+        if ($from.parentOffset !== 0) return false;
+        return editor.chain().setParagraph().run();
+      },
+    };
+  },
+});
+
 // Clear all marks when pressing Enter outside of lists/code blocks
 // so new lines never inherit bold, italic, etc.
 const ClearMarksOnEnter = Extension.create({
@@ -293,6 +310,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         TaskListMarkdown,
         TaskItemMarkdown.configure({ nested: true }),
         ClearMarksOnEnter,
+        HeadingKeyboardFix,
         Image.configure({ inline: false, allowBase64: false }),
         Table.configure({ resizable: false }),
         TableRow,

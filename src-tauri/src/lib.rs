@@ -1,7 +1,9 @@
 mod vault;
 use vault::*;
 use tauri::Emitter;
-use tauri::menu::{MenuItemBuilder, SubmenuBuilder, MenuBuilder, PredefinedMenuItem};
+use tauri::menu::{
+    AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -9,18 +11,49 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // ── Helm (app) menu ───────────────────────────────────────────
+            let about_metadata = AboutMetadataBuilder::new()
+                .version(Some(app.package_info().version.to_string()))
+                .copyright(Some("© 2026 Jordan Papaleo".to_string()))
+                .build();
+
+            let settings_item = MenuItemBuilder::new("Settings…")
+                .id("open_settings")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?;
+
+            let app_menu = SubmenuBuilder::new(app, "Helm")
+                .item(&PredefinedMenuItem::about(app, Some("About Helm"), Some(about_metadata))?)
+                .separator()
+                .item(&settings_item)
+                .item(&PredefinedMenuItem::services(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::hide(app, Some("Hide Helm"))?)
+                .item(&PredefinedMenuItem::hide_others(app, None)?)
+                .item(&PredefinedMenuItem::show_all(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::quit(app, Some("Quit Helm"))?)
+                .build()?;
+
+            // ── File menu ─────────────────────────────────────────────────
             let new_note_item = MenuItemBuilder::new("New Note")
                 .id("new_note")
                 .accelerator("CmdOrCtrl+N")
                 .build(app)?;
 
+            let add_vault_item = MenuItemBuilder::new("Add Vault…")
+                .id("add_vault")
+                .build(app)?;
+
             let file_menu = SubmenuBuilder::new(app, "File")
                 .item(&new_note_item)
                 .separator()
+                .item(&add_vault_item)
+                .separator()
                 .item(&PredefinedMenuItem::close_window(app, None)?)
-                .item(&PredefinedMenuItem::quit(app, None)?)
                 .build()?;
 
+            // ── Edit menu ─────────────────────────────────────────────────
             let edit_menu = SubmenuBuilder::new(app, "Edit")
                 .item(&PredefinedMenuItem::undo(app, None)?)
                 .item(&PredefinedMenuItem::redo(app, None)?)
@@ -31,6 +64,111 @@ pub fn run() {
                 .item(&PredefinedMenuItem::select_all(app, None)?)
                 .build()?;
 
+            // ── Format menu ───────────────────────────────────────────────
+            let heading_1 = MenuItemBuilder::new("Heading 1")
+                .id("heading_1")
+                .accelerator("CmdOrCtrl+1")
+                .build(app)?;
+            let heading_2 = MenuItemBuilder::new("Heading 2")
+                .id("heading_2")
+                .accelerator("CmdOrCtrl+2")
+                .build(app)?;
+            let heading_3 = MenuItemBuilder::new("Heading 3")
+                .id("heading_3")
+                .accelerator("CmdOrCtrl+3")
+                .build(app)?;
+            let heading_4 = MenuItemBuilder::new("Heading 4")
+                .id("heading_4")
+                .accelerator("CmdOrCtrl+4")
+                .build(app)?;
+            let heading_5 = MenuItemBuilder::new("Heading 5")
+                .id("heading_5")
+                .accelerator("CmdOrCtrl+5")
+                .build(app)?;
+            let heading_6 = MenuItemBuilder::new("Heading 6")
+                .id("heading_6")
+                .accelerator("CmdOrCtrl+6")
+                .build(app)?;
+            let paragraph_fmt = MenuItemBuilder::new("Paragraph")
+                .id("paragraph_fmt")
+                .build(app)?;
+
+            let format_menu = SubmenuBuilder::new(app, "Format")
+                .item(&heading_1)
+                .item(&heading_2)
+                .item(&heading_3)
+                .item(&heading_4)
+                .item(&heading_5)
+                .item(&heading_6)
+                .separator()
+                .item(&paragraph_fmt)
+                .build()?;
+
+            // ── View > Theme submenu ──────────────────────────────────────
+            let theme_defs = [
+                ("light", "Light"),
+                ("dark", "Dark"),
+                ("cyberpunk", "Cyberpunk"),
+                ("synthwave", "Synthwave"),
+                ("lofi", "Lo-Fi"),
+                ("cmyk", "CMYK"),
+                ("garden", "Garden"),
+                ("nord", "Nord"),
+                ("dracula", "Dracula"),
+                ("abyss", "Abyss"),
+                ("corporate", "Corporate"),
+                ("retro", "Retro"),
+                ("dim", "Dim"),
+                ("sunset", "Sunset"),
+                ("winter", "Winter"),
+            ];
+
+            let theme_items = theme_defs
+                .iter()
+                .map(|(id, name)| {
+                    MenuItemBuilder::new(*name)
+                        .id(format!("set_theme_{id}"))
+                        .build(app)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let mut theme_submenu = SubmenuBuilder::new(app, "Theme");
+            for item in &theme_items {
+                theme_submenu = theme_submenu.item(item);
+            }
+            let theme_submenu = theme_submenu.build()?;
+
+            let toggle_markdown = MenuItemBuilder::new("Toggle Markdown Mode")
+                .id("toggle_markdown")
+                .accelerator("CmdOrCtrl+M")
+                .build(app)?;
+
+            let font_increase = MenuItemBuilder::new("Increase Font Size")
+                .id("font_size_increase")
+                .accelerator("CmdOrCtrl+=")
+                .build(app)?;
+
+            let font_decrease = MenuItemBuilder::new("Decrease Font Size")
+                .id("font_size_decrease")
+                .accelerator("CmdOrCtrl+-")
+                .build(app)?;
+
+            let font_reset = MenuItemBuilder::new("Reset Font Size")
+                .id("font_size_reset")
+                .accelerator("CmdOrCtrl+0")
+                .build(app)?;
+
+            let view_menu = SubmenuBuilder::new(app, "View")
+                .item(&toggle_markdown)
+                .separator()
+                .item(&theme_submenu)
+                .separator()
+                .item(&font_increase)
+                .item(&font_decrease)
+                .item(&font_reset)
+                .build()?;
+
+            // ── Help menu ─────────────────────────────────────────────────
             let mcp_setup_item = MenuItemBuilder::new("MCP Setup")
                 .id("mcp_setup")
                 .build(app)?;
@@ -39,9 +177,13 @@ pub fn run() {
                 .item(&mcp_setup_item)
                 .build()?;
 
+            // ── Assemble menu bar ─────────────────────────────────────────
             let menu = MenuBuilder::new(app)
+                .item(&app_menu)
                 .item(&file_menu)
                 .item(&edit_menu)
+                .item(&format_menu)
+                .item(&view_menu)
                 .item(&help_menu)
                 .build()?;
 
@@ -49,9 +191,27 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
             app.on_menu_event(move |_app, event| {
-                match event.id().as_ref() {
+                let id = event.id().as_ref();
+                match id {
                     "new_note" => { let _ = app_handle.emit("new-note", ()); }
+                    "toggle_markdown" => { let _ = app_handle.emit("toggle-markdown", ()); }
+                    "open_settings" => { let _ = app_handle.emit("open-settings", ()); }
+                    "add_vault" => { let _ = app_handle.emit("add-vault", ()); }
                     "mcp_setup" => { let _ = app_handle.emit("show-mcp-setup", ()); }
+                    "font_size_increase" => { let _ = app_handle.emit("font-size-change", "increase"); }
+                    "font_size_decrease" => { let _ = app_handle.emit("font-size-change", "decrease"); }
+                    "font_size_reset" => { let _ = app_handle.emit("font-size-change", "reset"); }
+                    "heading_1" => { let _ = app_handle.emit("format-heading", 1u8); }
+                    "heading_2" => { let _ = app_handle.emit("format-heading", 2u8); }
+                    "heading_3" => { let _ = app_handle.emit("format-heading", 3u8); }
+                    "heading_4" => { let _ = app_handle.emit("format-heading", 4u8); }
+                    "heading_5" => { let _ = app_handle.emit("format-heading", 5u8); }
+                    "heading_6" => { let _ = app_handle.emit("format-heading", 6u8); }
+                    "paragraph_fmt" => { let _ = app_handle.emit("format-paragraph", ()); }
+                    other if other.starts_with("set_theme_") => {
+                        let theme_id = &other["set_theme_".len()..];
+                        let _ = app_handle.emit("set-theme", theme_id);
+                    }
                     _ => {}
                 }
             });
