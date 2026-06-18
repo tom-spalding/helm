@@ -122,6 +122,10 @@ export function PropertyPanel({
 }: PropertyPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(frontmatter.title);
+  useEffect(() => {
+    setTitleDraft(frontmatter.title);
+  }, [frontmatter.id]);
 
   function copyPath() {
     if (!filePath) return;
@@ -141,11 +145,13 @@ export function PropertyPanel({
       <div className="flex items-center gap-3">
         <input
           className="flex-1 bg-transparent text-3xl font-bold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
-          value={frontmatter.title}
-          onChange={(e) => onChange({ title: e.target.value })}
+          value={titleDraft}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onBlur={() => onChange({ title: titleDraft })}
           onKeyDown={(e) => {
             if (e.key === "Tab") {
               e.preventDefault();
+              onChange({ title: titleDraft });
               onTitleTab?.();
             }
           }}

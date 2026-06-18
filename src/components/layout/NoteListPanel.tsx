@@ -58,7 +58,8 @@ export function NoteListPanel() {
       result = result.filter(
         (n) =>
           n.frontmatter.title.toLowerCase().includes(q) ||
-          n.frontmatter.tags.some((t) => t.toLowerCase().includes(q)),
+          n.frontmatter.tags.some((t) => t.toLowerCase().includes(q)) ||
+          n.content.toLowerCase().includes(q),
       );
     }
 
