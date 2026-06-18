@@ -1,3 +1,19 @@
+## v0.8.0 — 2026-06-17
+
+- feat: toggle markdown mode via Cmd+M menu item and fix event double-registration
+- docs: fix Paragraph accelerator note in heading format menu spec
+- fix: use setHeading instead of toggleHeading for Format menu
+- feat: wire format-heading and format-paragraph events to TipTap editor
+- fix: remove out-of-scope toggle_markdown menu item
+- feat: add Format native menu with heading level shortcuts
+- feat: convert first-line heading to paragraph on Backspace
+- docs: add heading format menu implementation plan
+- docs: add heading format menu design spec
+- feat: enhance App functionality with new event listeners and UI state management
+- feat: enhance PropertyPanel title handling and improve NoteListPanel search functionality
+- 0.7.0
+- release: add Helm_0.7.0_aarch64.dmg
+
 ## v0.7.0 — 2026-06-12
 
 - conflict aftermath
