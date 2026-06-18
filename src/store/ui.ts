@@ -35,6 +35,9 @@ interface UIStore {
   setSidebarCollapsed: (collapsed: boolean) => void;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
+  markdownMode: boolean;
+  toggleMarkdownMode: () => void;
+  setMarkdownMode: (v: boolean) => void;
 
   navHistory: NavEntry[];
   navIndex: number;
@@ -58,6 +61,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  markdownMode: false,
+  toggleMarkdownMode: () => set((s) => ({ markdownMode: !s.markdownMode })),
+  setMarkdownMode: (markdownMode) => set({ markdownMode }),
 
   navHistory: [initialEntry],
   navIndex: 0,

@@ -18,20 +18,16 @@ export default function App() {
   const [showMcpSetup, setShowMcpSetup] = useState(false);
 
   useEffect(() => {
-    const unlisteners: Array<() => void> = [];
+    let cancelled = false;
+    let teardown: (() => void) | undefined;
 
     const setup = async () => {
-      unlisteners.push(
-        await listen("show-mcp-setup", () => setShowMcpSetup(true)),
-      );
+      const fns: Array<() => void> = [];
 
-      unlisteners.push(
-        await listen("open-settings", () =>
-          useUIStore.getState().setSettingsOpen(true),
-        ),
-      );
-
-      unlisteners.push(
+      fns.push(await listen("show-mcp-setup", () => setShowMcpSetup(true)));
+      fns.push(await listen("open-settings", () => useUIStore.getState().setSettingsOpen(true)));
+      fns.push(await listen("toggle-markdown", () => useUIStore.getState().toggleMarkdownMode()));
+      fns.push(
         await listen("add-vault", async () => {
           try {
             const path = await tauriCommands.openFolderDialog();
@@ -41,29 +37,25 @@ export default function App() {
           }
         }),
       );
-
-      unlisteners.push(
-        await listen<string>("set-theme", (event) => {
-          useThemeStore.getState().setTheme(event.payload);
-        }),
-      );
-
-      unlisteners.push(
-        await listen<string>("font-size-change", (event) => {
+      fns.push(await listen<string>("set-theme", (e) => useThemeStore.getState().setTheme(e.payload)));
+      fns.push(
+        await listen<string>("font-size-change", (e) => {
           const { settings, updateSettings } = useSettingsStore.getState();
-          if (event.payload === "reset") {
-            updateSettings({ fontSize: DEFAULT_SETTINGS.fontSize });
-          } else if (event.payload === "increase") {
-            updateSettings({ fontSize: Math.min(FONT_MAX, settings.fontSize + 1) });
-          } else if (event.payload === "decrease") {
-            updateSettings({ fontSize: Math.max(FONT_MIN, settings.fontSize - 1) });
-          }
+          if (e.payload === "reset") updateSettings({ fontSize: DEFAULT_SETTINGS.fontSize });
+          else if (e.payload === "increase") updateSettings({ fontSize: Math.min(FONT_MAX, settings.fontSize + 1) });
+          else if (e.payload === "decrease") updateSettings({ fontSize: Math.max(FONT_MIN, settings.fontSize - 1) });
         }),
       );
+
+      if (cancelled) fns.forEach((fn) => fn());
+      else teardown = () => fns.forEach((fn) => fn());
     };
 
     setup();
-    return () => unlisteners.forEach((fn) => fn());
+    return () => {
+      cancelled = true;
+      teardown?.();
+    };
   }, []);
 
   if (loading) {
