@@ -33,6 +33,8 @@ interface UIStore {
   setSelectedGrouping: (grouping: Grouping) => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
 
   navHistory: NavEntry[];
   navIndex: number;
@@ -54,6 +56,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setSelectedGrouping: (grouping) => set({ selectedGrouping: grouping }),
   sidebarCollapsed: false,
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+  settingsOpen: false,
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 
   navHistory: [initialEntry],
   navIndex: 0,

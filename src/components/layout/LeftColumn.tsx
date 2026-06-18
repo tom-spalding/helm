@@ -240,7 +240,6 @@ function NewFolderRow({ onCommit }: { onCommit: (name: string) => void }) {
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function LeftColumn() {
-  const [showSettings, setShowSettings] = useState(false);
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
   const [folderMenu, setFolderMenu] = useState<MenuState>(null);
   const {
@@ -250,6 +249,8 @@ export function LeftColumn() {
     setSelectedGrouping,
     sidebarCollapsed,
     setSidebarCollapsed,
+    settingsOpen,
+    setSettingsOpen,
     navigate,
   } = useUIStore();
   const {
@@ -431,7 +432,7 @@ export function LeftColumn() {
         <div className="flex flex-col border-t border-base-300 py-2">
           <button
             type="button"
-            onClick={() => setShowSettings(true)}
+            onClick={() => setSettingsOpen(true)}
             title="Settings"
             className="btn btn-ghost btn-xs btn-square ml-2 opacity-60 hover:opacity-100"
           >
@@ -446,7 +447,7 @@ export function LeftColumn() {
             <Icon icon="uil:arrow-right" className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
-        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+        {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       </div>
     );
   }
@@ -653,7 +654,7 @@ export function LeftColumn() {
       <div className="flex flex-col border-t border-base-300 py-2">
         <button
           type="button"
-          onClick={() => setShowSettings(true)}
+          onClick={() => setSettingsOpen(true)}
           title="Settings"
           className="btn btn-ghost btn-xs btn-square ml-2 opacity-60 hover:opacity-100"
         >
@@ -669,7 +670,7 @@ export function LeftColumn() {
         </button>
       </div>
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {folderMenu && (
         <ContextMenu
           x={folderMenu.x}
