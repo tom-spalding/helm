@@ -33,7 +33,7 @@ A new "Format" submenu is added to the macOS menu bar between Edit and View.
 | Heading 5  | `heading_5`      | `CmdOrCtrl+5`    |
 | Heading 6  | `heading_6`      | `CmdOrCtrl+6`    |
 | *(separator)* |               |                  |
-| Paragraph  | `paragraph_fmt`  | `CmdOrCtrl+0`    |
+| Paragraph  | `paragraph_fmt`  | *(none — `CmdOrCtrl+0` is taken by Reset Font Size)* |
 
 The accelerators are registered at the OS level (native macOS menu), which bypasses the WebView — this is why `⌘1–6` work here when they would not as TipTap keyboard shortcuts.
 
