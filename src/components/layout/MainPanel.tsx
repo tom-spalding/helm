@@ -183,7 +183,7 @@ export function MainPanel() {
       unlisteners.push(
         await listen<number>("format-heading", (event) => {
           const level = event.payload as 1 | 2 | 3 | 4 | 5 | 6;
-          editorRef.current?.getEditor()?.chain().focus().toggleHeading({ level }).run();
+          editorRef.current?.getEditor()?.chain().focus().setHeading({ level }).run();
         }),
       );
       unlisteners.push(
