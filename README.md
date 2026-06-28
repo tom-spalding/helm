@@ -1,6 +1,6 @@
 # Helm
 
-Helm is a personal knowledge management app for macOS. Notes are plain markdown files with YAML frontmatter stored in a folder on your computer — your **vault**. Helm never touches a server; everything stays on your device.
+Helm is a personal knowledge management app for macOS and Linux. Notes are plain markdown files with YAML frontmatter stored in a folder on your computer — your **vault**. Helm never touches a server; everything stays on your device.
 
 ---
 

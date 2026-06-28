@@ -21,6 +21,10 @@ cargo --version
 
 > **Note:** This project uses npm. Do not use pnpm or yarn — they will generate incompatible lock files.
 
+### Debian Setup
+
+See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
+
 ---
 
 ## Running Locally
@@ -66,6 +70,8 @@ Output: `src-tauri/target/release/bundle/`
 On macOS this produces:
 - `macos/Helm.app` — the app bundle
 - `dmg/Helm_<version>_aarch64.dmg` — the distributable disk image
+
+For Debian systems, use the .deb build found in the output and run `sudo dpkg -i <filename>.deb`.
 
 ---
 
