@@ -51,9 +51,7 @@ describe("PropertyPanel title sync", () => {
     const input = screen.getByDisplayValue("Old");
 
     // Same note (same id), title changed externally in the store.
-    rerender(
-      <PropertyPanel frontmatter={makeFrontmatter({ title: "New" })} onChange={vi.fn()} />,
-    );
+    rerender(<PropertyPanel frontmatter={makeFrontmatter({ title: "New" })} onChange={vi.fn()} />);
     expect(input).toHaveValue("New");
   });
 });

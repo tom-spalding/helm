@@ -1,7 +1,7 @@
 import { Extension } from "@tiptap/core";
+import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import type { Node } from "@tiptap/pm/model";
 
 export interface FindReplacePluginState {
   query: string;
@@ -34,8 +34,7 @@ export function findMatchesInDocument(
     const text = node.text ?? "";
     const haystack = caseSensitive ? text : text.toLowerCase();
     let start = 0;
-    let idx: number;
-    while ((idx = haystack.indexOf(q, start)) !== -1) {
+    for (let idx = haystack.indexOf(q, start); idx !== -1; idx = haystack.indexOf(q, start)) {
       if (wholeWord) {
         const before = idx > 0 ? text[idx - 1] : "";
         const after = idx + query.length < text.length ? text[idx + query.length] : "";
@@ -247,9 +246,9 @@ export const FindReplaceExtension = Extension.create({
           const s = findReplacePluginKey.getState(state);
           if (!s || s.matches.length === 0) return false;
           if (dispatch) {
-            [...s.matches]
-              .reverse()
-              .forEach(({ from, to }) => tr.insertText(replacement, from, to));
+            for (const { from, to } of [...s.matches].reverse()) {
+              tr.insertText(replacement, from, to);
+            }
             tr.setMeta(findReplacePluginKey, {
               type: "FIND",
               query: s.query,

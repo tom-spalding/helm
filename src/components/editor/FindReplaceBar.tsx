@@ -28,8 +28,7 @@ function findTextMatches(
   const q = caseSensitive ? query : query.toLowerCase();
   const haystack = caseSensitive ? text : text.toLowerCase();
   let pos = 0;
-  let idx: number;
-  while ((idx = haystack.indexOf(q, pos)) !== -1) {
+  for (let idx = haystack.indexOf(q, pos); idx !== -1; idx = haystack.indexOf(q, pos)) {
     if (wholeWord) {
       const before = idx > 0 ? text[idx - 1] : "";
       const after = idx + query.length < text.length ? text[idx + query.length] : "";

@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
 import { Extension } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { describe, expect, it } from "vitest";
 
 // Inline the extension logic here so the test is self-contained.
 // This mirrors what will live in NoteEditor.tsx.
