@@ -286,6 +286,13 @@ body {
   margin: 0 !important;
   padding: 0 !important;
 }
+/* Nested lists inside a list item must stay tight — the top-level (ul, ol) rule
+   above adds block spacing that reads as paragraph separation between a nested
+   item and the following top-level item (e.g. after indent → outdent). Only the
+   outermost list should carry block rhythm. */
+.prose :where(li ul, li ol) {
+  padding-bottom: 0 !important;
+}
 
 /* ── Task list checkboxes ───────────────────────────────────── */
 ul[data-type="taskList"] {
