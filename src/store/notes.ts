@@ -101,6 +101,13 @@ interface NoteStore {
    * No-ops if newTitle is empty or unchanged.
    */
   renameNote: (note: Note, newTitle: string) => Promise<void>;
+  /**
+   * Rename a folder: calls Tauri to move the directory on disk, then rewrites the
+   * `<oldPath>/` prefix on every affected note path and known folder path in the
+   * store. Folder names are used raw (no slugify). No-ops if newName is empty or
+   * unchanged.
+   */
+  renameFolder: (oldPath: string, newName: string) => Promise<void>;
 }
 
 /**
@@ -177,5 +184,35 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     await tauriCommands.renameNote(note.filePath, newFilePath);
     await tauriCommands.writeNote(newFilePath, serializeNote(updated));
     get().updateNote(updated);
+  },
+
+  renameFolder: async (oldPath, newName) => {
+    const trimmed = newName.trim();
+    const parent = oldPath.split("/").slice(0, -1).join("/");
+    const newPath = `${parent}/${trimmed}`;
+    if (!trimmed || newPath === oldPath) return;
+
+    await tauriCommands.renameFolder(oldPath, newPath);
+
+    const oldPrefix = `${oldPath}/`;
+    set((state) => {
+      const notes = state.notes.map((n) => {
+        if (!n.filePath.startsWith(oldPrefix)) return n;
+        const newFilePath = `${newPath}/${n.filePath.slice(oldPrefix.length)}`;
+        return {
+          ...n,
+          filePath: newFilePath,
+          fileName: newFilePath.split("/").at(-1) ?? n.fileName,
+        };
+      });
+      const knownFolderPaths = state.knownFolderPaths.map((fp) =>
+        fp === oldPath
+          ? newPath
+          : fp.startsWith(oldPrefix)
+            ? `${newPath}/${fp.slice(oldPrefix.length)}`
+            : fp,
+      );
+      return { notes, knownFolderPaths, tagTree: buildTagTree(notes) };
+    });
   },
 }));
