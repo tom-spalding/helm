@@ -87,6 +87,14 @@ interface NoteStore {
   selectNote: (id: string | null) => void;
   /** Update an existing note and rebuild indexes */
   updateNote: (note: Note) => void;
+  /**
+   * Live title update for in-progress editing: patches only the note's
+   * frontmatter title in place, rebuilding NO indexes. The tag tree is
+   * unaffected by a title, and the search index self-heals on the next
+   * updateNote (blur-time save). Use for per-keystroke title typing;
+   * use updateNote for the persisted change.
+   */
+  setNoteTitleLive: (id: string, title: string) => void;
   /** Add a new note and rebuild indexes */
   addNote: (note: Note) => void;
   /** Remove a note by ID and rebuild indexes */
@@ -146,6 +154,12 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       const searchIndex = buildIndex(notes);
       return { notes, tagTree: buildTagTree(notes), searchIndex };
     }),
+  setNoteTitleLive: (id, title) =>
+    set((state) => ({
+      notes: state.notes.map((n) =>
+        n.id === id ? { ...n, frontmatter: { ...n.frontmatter, title } } : n,
+      ),
+    })),
   addNote: (note) =>
     set((state) => {
       // Skip if a note with the same filePath is already in the store to prevent

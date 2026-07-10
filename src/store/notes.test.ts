@@ -471,6 +471,36 @@ describe("renameFolder", () => {
   });
 });
 
+describe("setNoteTitleLive", () => {
+  beforeEach(() => {
+    useNoteStore.setState({ notes: [], selectedNoteId: null, tagTree: {}, searchIndex: null });
+  });
+
+  it("patches the title in place without rebuilding the search index or tag tree", () => {
+    const { result } = renderHook(() => useNoteStore());
+    act(() => result.current.setNotes([makeNote({ id: "n1" })]));
+
+    // setNotes built these; a live title edit must reuse them, not rebuild.
+    const indexBefore = result.current.searchIndex;
+    const tagTreeBefore = result.current.tagTree;
+
+    act(() => result.current.setNoteTitleLive("n1", "New Title"));
+
+    expect(result.current.notes[0].frontmatter.title).toBe("New Title");
+    expect(result.current.searchIndex).toBe(indexBefore);
+    expect(result.current.tagTree).toBe(tagTreeBefore);
+  });
+
+  it("no-ops for an unknown note id", () => {
+    const { result } = renderHook(() => useNoteStore());
+    act(() => result.current.setNotes([makeNote({ id: "n1" })]));
+
+    act(() => result.current.setNoteTitleLive("missing", "x"));
+
+    expect(result.current.notes[0].frontmatter.title).toBe("Test Note");
+  });
+});
+
 describe("nested tag tree", () => {
   beforeEach(() => {
     useNoteStore.setState({

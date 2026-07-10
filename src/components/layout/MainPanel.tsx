@@ -143,7 +143,8 @@ function extractAssetPaths(content: string): Set<string> {
 
 export function MainPanel() {
   const { activeView, markdownMode, setMarkdownMode, toggleMarkdownMode } = useUIStore();
-  const { notes, selectedNoteId, updateNote, removeNote, selectNote } = useNoteStore();
+  const { notes, selectedNoteId, updateNote, setNoteTitleLive, removeNote, selectNote } =
+    useNoteStore();
   const { settings } = useSettingsStore();
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
   const editorRef = useRef<NoteEditorHandle>(null);
@@ -234,15 +235,13 @@ export function MainPanel() {
     }
   }
 
-  // Live title update while typing in the property panel — updates the store only
-  // (so the note list reflects it immediately) without a disk write on every
-  // keystroke. Persistence happens on blur/Tab via handleFrontmatterChange.
+  // Live title update while typing in the property panel — patches only the
+  // title in the store (so the note list reflects it immediately) with no disk
+  // write and no index rebuild per keystroke. Persistence + index refresh happen
+  // on blur/Tab via handleFrontmatterChange → updateNote.
   function handleTitleInput(title: string) {
     if (!selectedNote) return;
-    updateNote({
-      ...selectedNote,
-      frontmatter: { ...selectedNote.frontmatter, title },
-    });
+    setNoteTitleLive(selectedNote.id, title);
   }
 
   async function handleFrontmatterChange(updates: Partial<NoteFrontmatter>) {
