@@ -184,7 +184,12 @@ body {
   display: block;
 }
 .code-block-node-view pre {
-  padding-top: 2.25rem !important;
+  /* Override symmetric base padding so the top clears the absolutely-positioned
+     language bar (~0.5rem offset + ~0.7rem bar height ≈ 1.2rem) while keeping
+     top and bottom visually equal. 1.75rem gives ~0.55rem breathing room above
+     the first line of code without over-padding. */
+  padding-top: 1.75rem !important;
+  padding-bottom: 1.75rem !important;
 }
 .code-block-lang-bar {
   position: absolute;
