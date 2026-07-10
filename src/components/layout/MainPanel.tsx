@@ -234,6 +234,17 @@ export function MainPanel() {
     }
   }
 
+  // Live title update while typing in the property panel — updates the store only
+  // (so the note list reflects it immediately) without a disk write on every
+  // keystroke. Persistence happens on blur/Tab via handleFrontmatterChange.
+  function handleTitleInput(title: string) {
+    if (!selectedNote) return;
+    updateNote({
+      ...selectedNote,
+      frontmatter: { ...selectedNote.frontmatter, title },
+    });
+  }
+
   async function handleFrontmatterChange(updates: Partial<NoteFrontmatter>) {
     if (!selectedNote) return;
     const updated = {
@@ -278,6 +289,7 @@ export function MainPanel() {
               frontmatter={selectedNote.frontmatter}
               filePath={selectedNote.filePath}
               onChange={handleFrontmatterChange}
+              onTitleInput={handleTitleInput}
               onTitleTab={() => editorRef.current?.focus()}
               onDelete={selectedNote.frontmatter.locked ? undefined : handleDelete}
               markdownMode={markdownMode}
