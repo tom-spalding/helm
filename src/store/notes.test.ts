@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Note, VaultConfig } from "../types/note";
 import { tauriCommands } from "../lib/tauri-commands";
+import type { Note, VaultConfig } from "../types/note";
 import { useNoteStore } from "./notes";
 
 vi.mock("../lib/tauri-commands", () => ({
@@ -468,6 +468,141 @@ describe("renameFolder", () => {
       await result.current.renameFolder("/vault/old", "old");
     });
     expect(tauriCommands.renameFolder).not.toHaveBeenCalled();
+  });
+});
+
+describe("renameNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useNoteStore.setState({
+      notes: [],
+      selectedNoteId: null,
+      vaults: [],
+      activeVaultId: null,
+      tagTree: {},
+      searchIndex: null,
+      searchQuery: "",
+      searchResults: [],
+      knownFolderPaths: [],
+    });
+  });
+
+  it("writes updated content before renaming so a crash never loses the note", async () => {
+    const calls: string[] = [];
+    vi.mocked(tauriCommands.writeNote).mockImplementation(async () => {
+      calls.push("write");
+    });
+    vi.mocked(tauriCommands.renameNote).mockImplementation(async () => {
+      calls.push("rename");
+    });
+
+    const note = makeNote({ id: "n1", filePath: "/vault/old-title.md", fileName: "old-title.md" });
+    const { result } = renderHook(() => useNoteStore());
+    act(() => result.current.setNotes([note]));
+
+    await act(async () => {
+      await result.current.renameNote(result.current.notes[0], "New Title");
+    });
+
+    expect(calls).toEqual(["write", "rename"]);
+    // The write targets the OLD path — the file always exists with full content
+    expect(tauriCommands.writeNote).toHaveBeenCalledWith(
+      "/vault/old-title.md",
+      expect.stringContaining("New Title"),
+    );
+    expect(tauriCommands.renameNote).toHaveBeenCalledWith(
+      "/vault/old-title.md",
+      "/vault/new-title.md",
+    );
+    expect(result.current.notes[0].filePath).toBe("/vault/new-title.md");
+    expect(result.current.notes[0].frontmatter.title).toBe("New Title");
+  });
+
+  it("does not touch the store when the disk write fails", async () => {
+    vi.mocked(tauriCommands.writeNote).mockRejectedValueOnce(new Error("disk full"));
+    const note = makeNote({ id: "n1", filePath: "/vault/old-title.md", fileName: "old-title.md" });
+    const { result } = renderHook(() => useNoteStore());
+    act(() => result.current.setNotes([note]));
+
+    await expect(
+      act(async () => {
+        await result.current.renameNote(result.current.notes[0], "New Title");
+      }),
+    ).rejects.toThrow("disk full");
+
+    expect(result.current.notes[0].filePath).toBe("/vault/old-title.md");
+    expect(result.current.notes[0].frontmatter.title).toBe("Test Note");
+  });
+});
+
+describe("search index freshness", () => {
+  beforeEach(() => {
+    useNoteStore.setState({
+      notes: [],
+      selectedNoteId: null,
+      vaults: [],
+      activeVaultId: null,
+      tagTree: {},
+      searchIndex: null,
+      searchQuery: "",
+      searchResults: [],
+      knownFolderPaths: [],
+    });
+  });
+
+  it("a note added via addNote is findable by search", () => {
+    const { result } = renderHook(() => useNoteStore());
+    const existing = makeNote({ id: "n1", filePath: "/notes/a.md" });
+    const added = makeNote({
+      id: "n2",
+      filePath: "/notes/b.md",
+      content: "zebra migration patterns",
+      frontmatter: { ...makeNote().frontmatter, id: "n2", title: "Zebra Notes" },
+    });
+    act(() => {
+      result.current.setNotes([existing]);
+      result.current.addNote(added);
+      result.current.search("zebra");
+    });
+    expect(result.current.searchResults.map((n) => n.id)).toContain("n2");
+  });
+});
+
+describe("removeNote selection", () => {
+  beforeEach(() => {
+    useNoteStore.setState({
+      notes: [],
+      selectedNoteId: null,
+      vaults: [],
+      activeVaultId: null,
+      tagTree: {},
+      searchIndex: null,
+      searchQuery: "",
+      searchResults: [],
+      knownFolderPaths: [],
+    });
+  });
+
+  it("deselects the note when the selected note is removed", () => {
+    const { result } = renderHook(() => useNoteStore());
+    act(() => {
+      result.current.setNotes([makeNote({ id: "n1" })]);
+      result.current.selectNote("n1");
+      result.current.removeNote("n1");
+    });
+    expect(result.current.selectedNoteId).toBeNull();
+  });
+
+  it("keeps the selection when a different note is removed", () => {
+    const { result } = renderHook(() => useNoteStore());
+    const a = makeNote({ id: "n1", filePath: "/notes/a.md" });
+    const b = makeNote({ id: "n2", filePath: "/notes/b.md" });
+    act(() => {
+      result.current.setNotes([a, b]);
+      result.current.selectNote("n1");
+      result.current.removeNote("n2");
+    });
+    expect(result.current.selectedNoteId).toBe("n1");
   });
 });
 

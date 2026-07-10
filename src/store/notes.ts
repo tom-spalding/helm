@@ -5,8 +5,8 @@
  */
 import { create } from "zustand";
 import { serializeNote, slugify } from "../lib/note-parser";
-import { tauriCommands } from "../lib/tauri-commands";
 import { buildIndex, type NoteIndex, searchNotes } from "../lib/search";
+import { tauriCommands } from "../lib/tauri-commands";
 import type { Note, VaultConfig } from "../types/note";
 
 /**
@@ -166,12 +166,17 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       // duplicate entries from concurrent watcher callbacks or StrictMode runs.
       if (state.notes.some((n) => n.filePath === note.filePath)) return state;
       const notes = [...state.notes, note];
-      return { notes, tagTree: buildTagTree(notes) };
+      return { notes, tagTree: buildTagTree(notes), searchIndex: buildIndex(notes) };
     }),
   removeNote: (id) =>
     set((state) => {
       const notes = state.notes.filter((n) => n.id !== id);
-      return { notes, tagTree: buildTagTree(notes) };
+      return {
+        notes,
+        tagTree: buildTagTree(notes),
+        searchIndex: buildIndex(notes),
+        selectedNoteId: state.selectedNoteId === id ? null : state.selectedNoteId,
+      };
     }),
   search: (query) => {
     const { notes, searchIndex } = get();
@@ -195,8 +200,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       fileName: newFileName,
       frontmatter: { ...note.frontmatter, title: newTitle },
     };
+    // Write the updated content to the old path first, then rename. Both steps
+    // are individually atomic, so a crash between them leaves a fully intact
+    // note (with a stale filename at worst) — never a truncated or missing file.
+    await tauriCommands.writeNote(note.filePath, serializeNote(updated));
     await tauriCommands.renameNote(note.filePath, newFilePath);
-    await tauriCommands.writeNote(newFilePath, serializeNote(updated));
     get().updateNote(updated);
   },
 
