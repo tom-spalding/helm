@@ -1,3 +1,21 @@
+## v1.0.0 — 2026-07-10
+
+- docs: refresh CLAUDE.md for agentic use — new conventions, structure, MCP tools
+- docs(mcp): usage examples in setup modal and README
+- feat(mcp): note history snapshots, restore tools, and get_briefing
+- feat(capture): global quick-capture window (Cmd+Shift+Space)
+- feat(history): note time machine with snapshot-on-save
+- feat(dashboard): daily briefing card
+- chore: add MIT license
+- feat(release): validate signing credentials and verify notarization in release.sh
+- chore: fix remaining biome lint errors
+- fix(mcp): align inline-tag parsing with the app parser
+- feat(ui): toast notifications, error boundary, and close-time autosave flush
+- fix(store): crash-safe rename ordering, fresh search index, deselect on remove
+- fix(vault): atomic writes, path validation, and delete_asset command
+- docs: polish v0.9.0 changelog announcement
+- release: add Helm_0.9.0_aarch64.dmg
+
 ## v0.9.0 — 2026-07-10
 
 **What's new**
