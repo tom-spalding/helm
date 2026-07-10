@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { Schema } from "@tiptap/pm/model";
+import { describe, expect, it } from "vitest";
 import { findMatchesInDocument } from "../components/editor/findReplaceExtension";
 
 const schema = new Schema({

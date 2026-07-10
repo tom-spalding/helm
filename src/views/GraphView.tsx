@@ -15,6 +15,7 @@ import ForceGraph2D from "react-force-graph-2d";
 import { extractWikiLinks, serializeNote } from "../lib/note-parser";
 import { tauriCommands } from "../lib/tauri-commands";
 import { useNoteStore } from "../store/notes";
+import { reportError } from "../store/toast";
 import { useUIStore } from "../store/ui";
 import type { Note, NoteState } from "../types/note";
 
@@ -197,7 +198,7 @@ export function GraphView() {
       try {
         await tauriCommands.writeNote(updated.filePath, serializeNote(updated));
       } catch (e) {
-        console.error("Failed to create link:", e);
+        reportError("Failed to create link", e);
       }
     },
     [notes, updateNote],
@@ -218,7 +219,7 @@ export function GraphView() {
       try {
         await tauriCommands.writeNote(updated.filePath, serializeNote(updated));
       } catch (e) {
-        console.error("Failed to remove link:", e);
+        reportError("Failed to remove link", e);
       }
     },
     [notes, updateNote],

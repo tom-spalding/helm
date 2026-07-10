@@ -1,11 +1,12 @@
 import { Icon } from "@iconify/react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { useMemo, useState } from "react";
 import { ulid } from "ulid";
-import { confirm } from "@tauri-apps/plugin-dialog";
 import { buildTree, getAllFolderPaths } from "../../lib/file-tree";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
+import { reportError } from "../../store/toast";
 import { useTrashStore } from "../../store/trash";
 import { useUIStore } from "../../store/ui";
 import type { Note } from "../../types/note";
@@ -108,7 +109,7 @@ export function NoteListPanel() {
       selectNote(id);
       setView("notes");
     } catch (e) {
-      console.error("Failed to create note:", e);
+      reportError("Failed to create note", e);
     }
   }
 
@@ -119,7 +120,7 @@ export function NoteListPanel() {
       await tauriCommands.writeNote(item.note.filePath, serializeNote(item.note));
       addNote(item.note);
     } catch (e) {
-      console.error("Failed to restore note:", e);
+      reportError("Failed to restore note", e);
     }
   }
 
@@ -132,7 +133,7 @@ export function NoteListPanel() {
       await tauriCommands.writeNote(note.filePath, serializeNote(updated));
       updateNote(updated);
     } catch (e) {
-      console.error("Failed to toggle pin:", e);
+      reportError("Failed to toggle pin", e);
     }
   }
 
@@ -143,7 +144,7 @@ export function NoteListPanel() {
       await tauriCommands.renameNote(note.filePath, newFilePath);
       updateNote({ ...note, filePath: newFilePath });
     } catch (e) {
-      console.error("Failed to move note:", e);
+      reportError("Failed to move note", e);
     }
   }
 
@@ -156,7 +157,7 @@ export function NoteListPanel() {
       await tauriCommands.writeNote(note.filePath, serializeNote(updated));
       updateNote(updated);
     } catch (e) {
-      console.error(`Failed to toggle ${field}:`, e);
+      reportError(`Failed to toggle ${field}`, e);
     }
   }
 
@@ -164,7 +165,7 @@ export function NoteListPanel() {
     try {
       await renameNote(note, newTitle);
     } catch (e) {
-      console.error("Failed to rename note:", e);
+      reportError("Failed to rename note", e);
     }
     setRenamingNoteId(null);
   }
@@ -181,7 +182,7 @@ export function NoteListPanel() {
     try {
       await tauriCommands.deleteNote(note.filePath);
     } catch (e) {
-      console.error("Failed to delete note:", e);
+      reportError("Failed to delete note", e);
     }
   }
 

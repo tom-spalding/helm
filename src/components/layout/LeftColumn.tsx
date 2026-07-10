@@ -1,17 +1,18 @@
 import { Icon } from "@iconify/react";
-import React, { useMemo, useState } from "react";
 import { confirm } from "@tauri-apps/plugin-dialog";
+import React, { useMemo, useState } from "react";
+import { ulid } from "ulid";
 import { addVault, removeVault } from "../../hooks/useVault";
 import { buildTree, type TreeNode } from "../../lib/file-tree";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
-import { useNoteStore, type TagNode } from "../../store/notes";
+import { type TagNode, useNoteStore } from "../../store/notes";
+import { reportError } from "../../store/toast";
 import { useTrashStore } from "../../store/trash";
-import { useUIStore, type View, type Grouping } from "../../store/ui";
+import { type Grouping, useUIStore, type View } from "../../store/ui";
+import { SettingsModal } from "../settings/SettingsModal";
 import { ContextMenu, type ContextMenuItem } from "../sidebar/ContextMenu";
 import { RenameInput } from "../sidebar/RenameInput";
-import { SettingsModal } from "../settings/SettingsModal";
-import { ulid } from "ulid";
 
 const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "uil:dashboard" },
@@ -67,6 +68,7 @@ function FolderGroupings({
         return (
           <React.Fragment key={node.path}>
             <li>
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: onContextMenu is a supplementary affordance; all primary actions are reachable via the buttons inside this row */}
               <div
                 className={`flex w-full items-center gap-1 py-1 text-sm transition-colors ${
                   isActive
@@ -340,7 +342,7 @@ export function LeftColumn() {
       const path = await tauriCommands.openFolderDialog();
       if (path) await addVault(path);
     } catch (e) {
-      console.error("Failed to add vault:", e);
+      reportError("Failed to add vault", e);
     }
   }
 
@@ -385,7 +387,7 @@ export function LeftColumn() {
       useNoteStore.getState().selectNote(id);
       setView("notes");
     } catch (e) {
-      console.error("Failed to create note:", e);
+      reportError("Failed to create note", e);
     }
   }
 
@@ -401,7 +403,7 @@ export function LeftColumn() {
         const { knownFolderPaths: known, setKnownFolderPaths } = useNoteStore.getState();
         if (!known.includes(newPath)) setKnownFolderPaths([...known, newPath]);
       } catch (e) {
-        console.error("Failed to create folder:", e);
+        reportError("Failed to create folder", e);
       }
     }
     setNewFolderParent(null);
@@ -411,7 +413,7 @@ export function LeftColumn() {
     try {
       await useNoteStore.getState().renameFolder(oldPath, newName);
     } catch (e) {
-      console.error("Failed to rename folder:", e);
+      reportError("Failed to rename folder", e);
     }
     setRenamingFolderPath(null);
   }
@@ -438,7 +440,7 @@ export function LeftColumn() {
     try {
       await tauriCommands.deleteFolder(folderPath);
     } catch (e) {
-      console.error("Failed to delete folder:", e);
+      reportError("Failed to delete folder", e);
     }
   }
 

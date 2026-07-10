@@ -128,6 +128,7 @@ export function PropertyPanel({
   const [titleDraft, setTitleDraft] = useState(frontmatter.title);
   // Resync when the note switches (id) or the title changes in the store from
   // another surface (e.g. renaming from the note list).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: frontmatter.id is intentionally included — an in-progress draft must reset when switching notes even if both notes share the same title
   useEffect(() => {
     setTitleDraft(frontmatter.title);
   }, [frontmatter.id, frontmatter.title]);

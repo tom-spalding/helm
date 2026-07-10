@@ -38,6 +38,10 @@ export const tauriCommands = {
   writeAsset: (vaultPath: string, filename: string, data: number[]): Promise<string> =>
     invoke("write_asset", { vaultPath, filename, data }),
 
+  // Deletes a non-markdown asset file; the Rust side refuses .md paths so a bad
+  // asset-path extraction can never delete a note.
+  deleteAsset: (filePath: string): Promise<void> => invoke("delete_asset", { filePath }),
+
   listFolders: (vaultPath: string): Promise<string[]> => invoke("list_folders", { vaultPath }),
 
   createFolder: (path: string): Promise<void> => invoke("create_folder", { path }),
