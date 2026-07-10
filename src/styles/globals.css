@@ -157,6 +157,11 @@ body {
 
 /* ── TipTap code block (lowlight) ───────────────────────────── */
 .prose pre {
+  /* Drop the Tailwind/DaisyUI typography default margin (~1.7em top+bottom) that
+     stacked on top of the surrounding paragraph rhythm and read as an uneven gap.
+     Spacing around code blocks now comes from neighboring blocks like every other
+     element. */
+  margin: 0 !important;
   background: var(--color-base-200);
   border: 1px solid var(--color-border);
   border-radius: 8px;
