@@ -445,9 +445,20 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             }
           }
 
+          const text = event.clipboardData?.getData("text/plain");
+
+          // Inside a code block, paste the clipboard text verbatim. tiptap-markdown's
+          // clipboardTextParser would otherwise re-parse braces/newlines as document
+          // structure, spilling the content out of the block. insertText preserves
+          // newlines and indentation and respects code-block semantics.
+          if (text && view.state.selection.$from.parent.type.name === "codeBlock") {
+            event.preventDefault();
+            view.dispatch(view.state.tr.insertText(text));
+            return true;
+          }
+
           // Force tiptap-markdown's clipboardTextParser to handle plain text,
           // bypassing ProseMirror's default which would prefer text/html
-          const text = event.clipboardData?.getData("text/plain");
           if (text) {
             event.preventDefault();
             let handled = false;
