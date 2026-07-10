@@ -116,13 +116,15 @@ For an **unsigned** local build (no Apple Developer account needed), just run `n
 ```
 
 The script:
-1. Bumps the version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`
-2. Generates a changelog entry in `CHANGELOG.md` from commits since the last tag
-3. Commits the version bump and tags the release (`vX.Y.Z`)
-4. Runs `npm run tauri build` to produce the `.dmg`
-5. Copies the DMG to `releases/vX.Y.Z/` and commits it
+1. Sources `sign.sh` and validates the Apple signing credentials: all four of `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` must be exported, and the signing identity must exist in the keychain. It aborts otherwise — a partial `sign.sh` produces a build that Gatekeeper rejects on other machines.
+2. Bumps the version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`
+3. Generates a changelog entry in `CHANGELOG.md` from commits since the last tag
+4. Commits the version bump and tags the release (`vX.Y.Z`)
+5. Runs `npm run tauri build` to produce the `.dmg` (Tauri signs and notarizes using the credentials from step 1)
+6. **Verifies the artifacts**: `codesign --verify` and `xcrun stapler validate` on `Helm.app`, plus a Gatekeeper assessment (`spctl`) that must report *Notarized Developer ID*. If any check fails, the script aborts without committing artifacts.
+7. Copies the DMG to `releases/vX.Y.Z/` and commits it
 
-For signed/notarized builds, create a `sign.sh` at the repo root that exports the Apple signing environment variables (see the Creating a DMG section below). The script sources it automatically if present.
+`sign.sh` lives at the repo root, is git-ignored, and must export the four Apple signing environment variables (see the Creating a DMG section below).
 
 After the script completes, publish with:
 ```sh
