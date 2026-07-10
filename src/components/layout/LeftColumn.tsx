@@ -9,6 +9,7 @@ import { useNoteStore, type TagNode } from "../../store/notes";
 import { useTrashStore } from "../../store/trash";
 import { useUIStore, type View, type Grouping } from "../../store/ui";
 import { ContextMenu, type ContextMenuItem } from "../sidebar/ContextMenu";
+import { RenameInput } from "../sidebar/RenameInput";
 import { SettingsModal } from "../settings/SettingsModal";
 import { ulid } from "ulid";
 
@@ -25,12 +26,22 @@ function FolderGroupings({
   noteCount,
   onContextMenu,
   onNavigate,
+  newFolderParent,
+  onCreateFolder,
+  renamingFolderPath,
+  onRenameCommit,
+  onRenameCancel,
 }: {
   depth?: number;
   nodes: TreeNode[];
   noteCount: (path: string) => number;
   onContextMenu: (e: React.MouseEvent, folderPath: string) => void;
   onNavigate: (grouping: Grouping) => void;
+  newFolderParent: string | null;
+  onCreateFolder: (parentPath: string, name: string) => void;
+  renamingFolderPath: string | null;
+  onRenameCommit: (oldPath: string, newName: string) => void;
+  onRenameCancel: () => void;
 }) {
   const { selectedGrouping } = useUIStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -44,10 +55,14 @@ function FolderGroupings({
   return (
     <>
       {folderNodes.map((node) => {
-        const isOpen = !collapsed.has(node.path);
+        const hasSubfolders = node.children.some((c) => c.kind === "folder");
+        const isAddingChild = newFolderParent === node.path;
+        // Expand a folder when it is the target of a new-subfolder input so the
+        // input is visible, even if the folder currently has no subfolders.
+        const isOpen = !collapsed.has(node.path) || isAddingChild;
         const isActive = selectedGrouping.type === "folder" && selectedGrouping.id === node.path;
         const count = noteCount(node.path);
-        const hasSubfolders = node.children.some((c) => c.kind === "folder");
+        const isRenaming = renamingFolderPath === node.path;
 
         return (
           <React.Fragment key={node.path}>
@@ -81,21 +96,42 @@ function FolderGroupings({
                     />
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate({ type: "folder", id: node.path })}
-                  className="flex flex-1 min-w-0 items-center gap-1.5 pr-2"
-                >
-                  <Icon
-                    icon="uil:folder"
-                    className="h-3.5 w-3.5 shrink-0 opacity-60"
-                    aria-hidden="true"
-                  />
-                  <span className="flex-1 truncate text-left">{node.name}</span>
-                  {count > 0 && <span className="shrink-0 text-xs opacity-40">{count}</span>}
-                </button>
+                {isRenaming ? (
+                  <div className="flex flex-1 min-w-0 items-center gap-1.5 pr-2">
+                    <Icon
+                      icon="uil:folder"
+                      className="h-3.5 w-3.5 shrink-0 opacity-60"
+                      aria-hidden="true"
+                    />
+                    <RenameInput
+                      initial={node.name}
+                      onCommit={(value) => onRenameCommit(node.path, value)}
+                      onCancel={onRenameCancel}
+                      className="flex-1 rounded bg-base-100 px-1 text-sm text-base-content outline outline-1 outline-primary"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate({ type: "folder", id: node.path })}
+                    className="flex flex-1 min-w-0 items-center gap-1.5 pr-2"
+                  >
+                    <Icon
+                      icon="uil:folder"
+                      className="h-3.5 w-3.5 shrink-0 opacity-60"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1 truncate text-left">{node.name}</span>
+                    {count > 0 && <span className="shrink-0 text-xs opacity-40">{count}</span>}
+                  </button>
+                )}
               </div>
             </li>
+            {isOpen && isAddingChild && (
+              <li>
+                <NewFolderRow onCommit={(name) => onCreateFolder(node.path, name)} />
+              </li>
+            )}
             {isOpen && hasSubfolders && (
               <FolderGroupings
                 depth={depth + 1}
@@ -103,6 +139,11 @@ function FolderGroupings({
                 noteCount={noteCount}
                 onContextMenu={onContextMenu}
                 onNavigate={onNavigate}
+                newFolderParent={newFolderParent}
+                onCreateFolder={onCreateFolder}
+                renamingFolderPath={renamingFolderPath}
+                onRenameCommit={onRenameCommit}
+                onRenameCancel={onRenameCancel}
               />
             )}
           </React.Fragment>
@@ -241,6 +282,7 @@ type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function LeftColumn() {
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
+  const [renamingFolderPath, setRenamingFolderPath] = useState<string | null>(null);
   const [folderMenu, setFolderMenu] = useState<MenuState>(null);
   const {
     activeView,
@@ -347,6 +389,33 @@ export function LeftColumn() {
     }
   }
 
+  // Single create-folder path shared by the root "New folder" button and the
+  // per-folder "New Subfolder" action. Optimistically registers the new path in
+  // the store so an empty folder shows immediately instead of waiting on the
+  // filesystem watcher. Folder names are used raw (no slugify).
+  async function handleCreateFolder(parentPath: string, name: string) {
+    if (name) {
+      const newPath = `${parentPath}/${name}`;
+      try {
+        await tauriCommands.createFolder(newPath);
+        const { knownFolderPaths: known, setKnownFolderPaths } = useNoteStore.getState();
+        if (!known.includes(newPath)) setKnownFolderPaths([...known, newPath]);
+      } catch (e) {
+        console.error("Failed to create folder:", e);
+      }
+    }
+    setNewFolderParent(null);
+  }
+
+  async function handleRenameFolder(oldPath: string, newName: string) {
+    try {
+      await useNoteStore.getState().renameFolder(oldPath, newName);
+    } catch (e) {
+      console.error("Failed to rename folder:", e);
+    }
+    setRenamingFolderPath(null);
+  }
+
   async function handleDeleteFolder(folderPath: string) {
     const name = folderPath.split("/").pop();
     const ok = await confirm(
@@ -393,6 +462,11 @@ export function LeftColumn() {
             setSelectedGrouping({ type: "folder", id: folderPath });
             setView("notes");
           },
+        },
+        {
+          kind: "action",
+          label: "Rename",
+          onClick: () => setRenamingFolderPath(folderPath),
         },
         { kind: "separator" },
         {
@@ -573,21 +647,10 @@ export function LeftColumn() {
                 </button>
               </li>
 
-              {/* New folder inline input */}
+              {/* New folder inline input (vault root) */}
               {newFolderParent === activeVault.path && (
                 <li>
-                  <NewFolderRow
-                    onCommit={async (name) => {
-                      if (name) {
-                        try {
-                          await tauriCommands.createFolder(`${activeVault.path}/${name}`);
-                        } catch (e) {
-                          console.error("Failed to create folder:", e);
-                        }
-                      }
-                      setNewFolderParent(null);
-                    }}
-                  />
+                  <NewFolderRow onCommit={(name) => handleCreateFolder(activeVault.path, name)} />
                 </li>
               )}
 
@@ -599,6 +662,11 @@ export function LeftColumn() {
                 onNavigate={(grouping) =>
                   navigate({ view: "notes", selectedNoteId, selectedGrouping: grouping })
                 }
+                newFolderParent={newFolderParent}
+                onCreateFolder={handleCreateFolder}
+                renamingFolderPath={renamingFolderPath}
+                onRenameCommit={handleRenameFolder}
+                onRenameCancel={() => setRenamingFolderPath(null)}
               />
             </ul>
 

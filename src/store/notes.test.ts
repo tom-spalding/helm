@@ -1,7 +1,16 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Note, VaultConfig } from "../types/note";
+import { tauriCommands } from "../lib/tauri-commands";
 import { useNoteStore } from "./notes";
+
+vi.mock("../lib/tauri-commands", () => ({
+  tauriCommands: {
+    renameFolder: vi.fn().mockResolvedValue(undefined),
+    renameNote: vi.fn().mockResolvedValue(undefined),
+    writeNote: vi.fn().mockResolvedValue(undefined),
+  },
+}));
 
 function makeNote(overrides: Partial<Note> = {}): Note {
   return {
@@ -411,6 +420,84 @@ describe("setKnownFolderPaths", () => {
       result.current.setKnownFolderPaths(["/new1", "/new2"]);
     });
     expect(result.current.knownFolderPaths).toEqual(["/new1", "/new2"]);
+  });
+});
+
+describe("renameFolder", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useNoteStore.setState({
+      notes: [],
+      selectedNoteId: null,
+      vaults: [],
+      activeVaultId: null,
+      tagTree: {},
+      searchIndex: null,
+      searchQuery: "",
+      searchResults: [],
+      knownFolderPaths: [],
+    });
+  });
+
+  it("renames the folder on disk and rewrites child note paths", async () => {
+    const child = makeNote({
+      id: "n1",
+      filePath: "/vault/old/note.md",
+      fileName: "note.md",
+    });
+    const { result } = renderHook(() => useNoteStore());
+    act(() => {
+      result.current.setNotes([child]);
+      result.current.setKnownFolderPaths(["/vault/old", "/vault/old/sub"]);
+    });
+
+    await act(async () => {
+      await result.current.renameFolder("/vault/old", "new");
+    });
+
+    expect(tauriCommands.renameFolder).toHaveBeenCalledWith("/vault/old", "/vault/new");
+    expect(result.current.notes[0].filePath).toBe("/vault/new/note.md");
+    expect(result.current.notes[0].fileName).toBe("note.md");
+    expect(result.current.knownFolderPaths).toEqual(["/vault/new", "/vault/new/sub"]);
+  });
+
+  it("no-ops when the new name is empty or unchanged", async () => {
+    const { result } = renderHook(() => useNoteStore());
+    await act(async () => {
+      await result.current.renameFolder("/vault/old", "  ");
+      await result.current.renameFolder("/vault/old", "old");
+    });
+    expect(tauriCommands.renameFolder).not.toHaveBeenCalled();
+  });
+});
+
+describe("setNoteTitleLive", () => {
+  beforeEach(() => {
+    useNoteStore.setState({ notes: [], selectedNoteId: null, tagTree: {}, searchIndex: null });
+  });
+
+  it("patches the title in place without rebuilding the search index or tag tree", () => {
+    const { result } = renderHook(() => useNoteStore());
+    act(() => result.current.setNotes([makeNote({ id: "n1" })]));
+
+    // setNotes built these; a live title edit must reuse them, not rebuild.
+    const indexBefore = result.current.searchIndex;
+    const tagTreeBefore = result.current.tagTree;
+
+    act(() => result.current.setNoteTitleLive("n1", "New Title"));
+
+    expect(result.current.notes[0].frontmatter.title).toBe("New Title");
+    expect(result.current.searchIndex).toBe(indexBefore);
+    expect(result.current.tagTree).toBe(tagTreeBefore);
+  });
+
+  it("no-ops for an unknown note id", () => {
+    const { result } = renderHook(() => useNoteStore());
+    act(() => result.current.setNotes([makeNote({ id: "n1" })]));
+
+    act(() => result.current.setNoteTitleLive("missing", "x"));
+
+    expect(result.current.notes[0].frontmatter.title).toBe("Test Note");
   });
 });
 

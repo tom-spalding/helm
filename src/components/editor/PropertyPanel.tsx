@@ -7,6 +7,8 @@ interface PropertyPanelProps {
   frontmatter: NoteFrontmatter;
   filePath?: string;
   onChange: (updates: Partial<NoteFrontmatter>) => void;
+  /** Live title updates while typing — keeps the note list in sync before blur. */
+  onTitleInput?: (title: string) => void;
   onTitleTab?: () => void;
   onDelete?: () => void;
   markdownMode?: boolean;
@@ -115,6 +117,7 @@ export function PropertyPanel({
   frontmatter,
   filePath,
   onChange,
+  onTitleInput,
   onTitleTab,
   onDelete,
   markdownMode,
@@ -123,9 +126,11 @@ export function PropertyPanel({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [titleDraft, setTitleDraft] = useState(frontmatter.title);
+  // Resync when the note switches (id) or the title changes in the store from
+  // another surface (e.g. renaming from the note list).
   useEffect(() => {
     setTitleDraft(frontmatter.title);
-  }, [frontmatter.id]);
+  }, [frontmatter.id, frontmatter.title]);
 
   function copyPath() {
     if (!filePath) return;
@@ -146,7 +151,10 @@ export function PropertyPanel({
         <input
           className="flex-1 bg-transparent text-3xl font-bold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
           value={titleDraft}
-          onChange={(e) => setTitleDraft(e.target.value)}
+          onChange={(e) => {
+            setTitleDraft(e.target.value);
+            onTitleInput?.(e.target.value);
+          }}
           onBlur={() => onChange({ title: titleDraft })}
           onKeyDown={(e) => {
             if (e.key === "Tab") {

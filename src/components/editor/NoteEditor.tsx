@@ -1,7 +1,6 @@
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
-import Paragraph from "@tiptap/extension-paragraph";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table } from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
@@ -17,49 +16,12 @@ import {
   ReactNodeViewRenderer,
   useEditor,
 } from "@tiptap/react";
-import { CodeBlockView } from "./CodeBlockView";
 import StarterKit from "@tiptap/starter-kit";
-import { lowlight } from "../../lib/lowlight";
 import taskListPlugin from "markdown-it-task-lists";
 import { Markdown } from "tiptap-markdown";
-
-// Extends Paragraph to preserve blank lines (empty paragraphs) through markdown round-trips.
-// Empty paragraphs are serialized as a single NBSP character so markdown-it doesn't collapse
-// them, and a preprocessor restores them when parsing content that has extra blank lines.
-const ParagraphMarkdown = Paragraph.extend({
-  addStorage() {
-    return {
-      markdown: {
-        // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown serializer types are not exported
-        serialize(state: any, node: any) {
-          if (node.childCount === 0 || node.textContent === "\u00A0") {
-            state.write("\u00A0"); // NBSP placeholder — survives markdown round-trip
-          } else {
-            state.renderInline(node);
-          }
-          state.closeBlock(node);
-        },
-        parse: {
-          // biome-ignore lint/suspicious/noExplicitAny: markdown-it instance type not exported by tiptap-markdown
-          setup(md: any) {
-            if (!md.__blankLinesAdded) {
-              // Convert runs of 3+ newlines (extra blank lines) into NBSP placeholder paragraphs
-              // so they survive the markdown-it block parser which collapses multiple blank lines.
-              // biome-ignore lint/suspicious/noExplicitAny: markdown-it core ruler state not exported
-              md.core.ruler.before("block", "preserve-blank-lines", (state: any) => {
-                state.src = state.src.replace(/\n{3,}/g, (match: string) => {
-                  const extraBlanks = match.length - 2;
-                  return `\n\n${"\u00A0\n\n".repeat(extraBlanks)}`;
-                });
-              });
-              md.__blankLinesAdded = true;
-            }
-          },
-        },
-      },
-    };
-  },
-});
+import { lowlight } from "../../lib/lowlight";
+import { CodeBlockView } from "./CodeBlockView";
+import { CodeBlockGapCursor, handleTextPaste, ParagraphMarkdown } from "./extensions";
 
 // tiptap-markdown calls parse.setup(md) on every parse() call (initial load, paste, setContent).
 // We use this to register markdown-it-task-lists once on the md instance.
@@ -236,8 +198,8 @@ import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
 import { useSettingsStore } from "../../store/settings";
 import type { Note } from "../../types/note";
-import { WikiLinkExtension } from "./WikiLink";
 import { FindReplaceExtension } from "./findReplaceExtension";
+import { WikiLinkExtension } from "./WikiLink";
 
 interface SuggestionPopup {
   items: Note[];
@@ -311,6 +273,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         TaskItemMarkdown.configure({ nested: true }),
         ClearMarksOnEnter,
         HeadingKeyboardFix,
+        CodeBlockGapCursor,
         Image.configure({ inline: false, allowBase64: false }),
         Table.configure({ resizable: false }),
         TableRow,
@@ -445,25 +408,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             }
           }
 
-          // Force tiptap-markdown's clipboardTextParser to handle plain text,
-          // bypassing ProseMirror's default which would prefer text/html
           const text = event.clipboardData?.getData("text/plain");
-          if (text) {
+          if (handleTextPaste(view, text)) {
             event.preventDefault();
-            let handled = false;
-            // biome-ignore lint/suspicious/noExplicitAny: ProseMirror someProp callback is untyped
-            view.someProp("clipboardTextParser", (f: any) => {
-              // biome-ignore lint/suspicious/noExplicitAny: accessing ProseMirror internal clipboard API not exposed in types
-              const slice = (f as any)(text, (view.state as any).$from, false, view);
-              if (slice) {
-                view.dispatch(view.state.tr.replaceSelection(slice));
-                handled = true;
-              }
-              return !!slice;
-            });
-            if (!handled) {
-              view.dispatch(view.state.tr.insertText(text));
-            }
             return true;
           }
 

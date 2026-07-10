@@ -4,6 +4,8 @@
  * full-text search index for note discovery.
  */
 import { create } from "zustand";
+import { serializeNote, slugify } from "../lib/note-parser";
+import { tauriCommands } from "../lib/tauri-commands";
 import { buildIndex, type NoteIndex, searchNotes } from "../lib/search";
 import type { Note, VaultConfig } from "../types/note";
 
@@ -85,6 +87,14 @@ interface NoteStore {
   selectNote: (id: string | null) => void;
   /** Update an existing note and rebuild indexes */
   updateNote: (note: Note) => void;
+  /**
+   * Live title update for in-progress editing: patches only the note's
+   * frontmatter title in place, rebuilding NO indexes. The tag tree is
+   * unaffected by a title, and the search index self-heals on the next
+   * updateNote (blur-time save). Use for per-keystroke title typing;
+   * use updateNote for the persisted change.
+   */
+  setNoteTitleLive: (id: string, title: string) => void;
   /** Add a new note and rebuild indexes */
   addNote: (note: Note) => void;
   /** Remove a note by ID and rebuild indexes */
@@ -93,6 +103,19 @@ interface NoteStore {
   search: (query: string) => void;
   /** Replace the known folder paths (called on vault load and dir change events) */
   setKnownFolderPaths: (paths: string[]) => void;
+  /**
+   * Rename a note: updates the title in frontmatter, re-slugifies the filename,
+   * calls Tauri to rename + rewrite the file, then updates the store.
+   * No-ops if newTitle is empty or unchanged.
+   */
+  renameNote: (note: Note, newTitle: string) => Promise<void>;
+  /**
+   * Rename a folder: calls Tauri to move the directory on disk, then rewrites the
+   * `<oldPath>/` prefix on every affected note path and known folder path in the
+   * store. Folder names are used raw (no slugify). No-ops if newName is empty or
+   * unchanged.
+   */
+  renameFolder: (oldPath: string, newName: string) => Promise<void>;
 }
 
 /**
@@ -131,6 +154,12 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       const searchIndex = buildIndex(notes);
       return { notes, tagTree: buildTagTree(notes), searchIndex };
     }),
+  setNoteTitleLive: (id, title) =>
+    set((state) => ({
+      notes: state.notes.map((n) =>
+        n.id === id ? { ...n, frontmatter: { ...n.frontmatter, title } } : n,
+      ),
+    })),
   addNote: (note) =>
     set((state) => {
       // Skip if a note with the same filePath is already in the store to prevent
@@ -154,4 +183,50 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     set({ searchQuery: query, searchResults: results });
   },
   setKnownFolderPaths: (paths) => set({ knownFolderPaths: paths }),
+
+  renameNote: async (note, newTitle) => {
+    if (!newTitle || newTitle === note.frontmatter.title) return;
+    const folder = note.filePath.split("/").slice(0, -1).join("/");
+    const newFileName = `${slugify(newTitle)}.md`;
+    const newFilePath = `${folder}/${newFileName}`;
+    const updated: Note = {
+      ...note,
+      filePath: newFilePath,
+      fileName: newFileName,
+      frontmatter: { ...note.frontmatter, title: newTitle },
+    };
+    await tauriCommands.renameNote(note.filePath, newFilePath);
+    await tauriCommands.writeNote(newFilePath, serializeNote(updated));
+    get().updateNote(updated);
+  },
+
+  renameFolder: async (oldPath, newName) => {
+    const trimmed = newName.trim();
+    const parent = oldPath.split("/").slice(0, -1).join("/");
+    const newPath = `${parent}/${trimmed}`;
+    if (!trimmed || newPath === oldPath) return;
+
+    await tauriCommands.renameFolder(oldPath, newPath);
+
+    const oldPrefix = `${oldPath}/`;
+    set((state) => {
+      const notes = state.notes.map((n) => {
+        if (!n.filePath.startsWith(oldPrefix)) return n;
+        const newFilePath = `${newPath}/${n.filePath.slice(oldPrefix.length)}`;
+        return {
+          ...n,
+          filePath: newFilePath,
+          fileName: newFilePath.split("/").at(-1) ?? n.fileName,
+        };
+      });
+      const knownFolderPaths = state.knownFolderPaths.map((fp) =>
+        fp === oldPath
+          ? newPath
+          : fp.startsWith(oldPrefix)
+            ? `${newPath}/${fp.slice(oldPrefix.length)}`
+            : fp,
+      );
+      return { notes, knownFolderPaths, tagTree: buildTagTree(notes) };
+    });
+  },
 }));

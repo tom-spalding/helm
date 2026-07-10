@@ -54,6 +54,10 @@
     var(--color-base-content)
   );
   --color-syntax-meta: var(--color-text-muted);
+  /* Punctuation ({} [] () , : ; etc.) gets the same color as body text — no blending needed.
+     Using base-content directly gives full contrast in both light and dark without looking
+     like a "special" token. Overridable per-theme if a subtler value is preferred. */
+  --color-syntax-punctuation: var(--color-base-content);
 
   /* ── Editor typography — overridden at runtime by applySettings() */
   --editor-font-size: 16px;
@@ -153,6 +157,11 @@ body {
 
 /* ── TipTap code block (lowlight) ───────────────────────────── */
 .prose pre {
+  /* Drop the Tailwind/DaisyUI typography default margin (~1.7em top+bottom) that
+     stacked on top of the surrounding paragraph rhythm and read as an uneven gap.
+     Spacing around code blocks now comes from neighboring blocks like every other
+     element. */
+  margin: 0 !important;
   background: var(--color-base-200);
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -161,6 +170,11 @@ body {
   font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 1.6;
+  /* DaisyUI sets --tw-prose-pre-code to --color-neutral-content (near-white in light themes)
+     on the pre element, which conflicts with our light base-200 background.
+     Setting color explicitly here prevents that near-white from leaking into unclassed
+     text nodes or any hljs spans that might not be covered by the pre code override. */
+  color: var(--color-base-content);
 }
 .prose pre code {
   background: none;
@@ -175,7 +189,12 @@ body {
   display: block;
 }
 .code-block-node-view pre {
-  padding-top: 2.25rem !important;
+  /* Override symmetric base padding so the top clears the absolutely-positioned
+     language bar (~0.5rem offset + ~0.7rem bar height ≈ 1.2rem) while keeping
+     top and bottom visually equal. 1.75rem gives ~0.55rem breathing room above
+     the first line of code without over-padding. */
+  padding-top: 1.75rem !important;
+  padding-bottom: 1.75rem !important;
 }
 .code-block-lang-bar {
   position: absolute;
@@ -271,6 +290,13 @@ body {
 .prose :where(li > p) {
   margin: 0 !important;
   padding: 0 !important;
+}
+/* Nested lists inside a list item must stay tight — the top-level (ul, ol) rule
+   above adds block spacing that reads as paragraph separation between a nested
+   item and the following top-level item (e.g. after indent → outdent). Only the
+   outermost list should carry block rhythm. */
+.prose :where(li ul, li ol) {
+  padding-bottom: 0 !important;
 }
 
 /* ── Task list checkboxes ───────────────────────────────────── */
@@ -411,6 +437,37 @@ ul[data-type="taskList"] ul[data-type="taskList"] {
 }
 .hljs-meta {
   color: var(--color-syntax-meta);
+}
+.hljs-punctuation {
+  color: var(--color-syntax-punctuation);
+}
+
+/* ── ProseMirror gap cursor ─────────────────────────────────── */
+/* Canonical gapcursor styles (from prosemirror-gapcursor) so the caret is
+   visible when it lands in a gap where no text can go — e.g. between two
+   adjacent code blocks. Theme-aware: the caret uses --color-base-content so it
+   shows in both light and dark themes instead of the plugin default black. */
+.ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+}
+.ProseMirror-gapcursor::after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid var(--color-base-content);
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+@keyframes ProseMirror-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
 }
 
 .find-replace-highlight {
