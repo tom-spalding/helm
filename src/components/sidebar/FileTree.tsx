@@ -6,8 +6,9 @@ import { confirm } from "@tauri-apps/plugin-dialog";
 import React, { useMemo, useState } from "react";
 import { ulid } from "ulid";
 import { buildTree, getAllFolderPaths, type TreeNode } from "../../lib/file-tree";
-import { serializeNote, slugify } from "../../lib/note-parser";
+import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
+import { RenameInput } from "./RenameInput";
 import { useNoteStore } from "../../store/notes";
 import { useUIStore } from "../../store/ui";
 import type { Note, VaultConfig } from "../../types/note";
@@ -62,45 +63,6 @@ function NewFolderInput({ onCommit }: { onCommit: (name: string) => void }) {
   );
 }
 
-function RenameInput({
-  initial,
-  onCommit,
-  onCancel,
-}: {
-  initial: string;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const committed = React.useRef(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
-  return (
-    <input
-      ref={inputRef}
-      defaultValue={initial}
-      className="flex-1 rounded bg-[var(--color-bg)] px-1 text-sm text-[var(--color-text)] outline outline-1 outline-[var(--color-accent)]"
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          committed.current = true;
-          onCommit((e.target as HTMLInputElement).value.trim());
-        }
-        if (e.key === "Escape") {
-          committed.current = true;
-          onCancel();
-        }
-        e.stopPropagation();
-      }}
-      onBlur={(e) => {
-        if (!committed.current) onCommit(e.target.value.trim());
-      }}
-      onClick={(e) => e.stopPropagation()}
-    />
-  );
-}
-
 // Standalone component so useDraggable can be called as a proper React hook.
 function NoteItem({
   note,
@@ -148,6 +110,7 @@ function NoteItem({
           initial={note.frontmatter.title}
           onCommit={onRenameCommit}
           onCancel={onRenameCancel}
+          className="flex-1 rounded bg-[var(--color-bg)] px-1 text-sm text-[var(--color-text)] outline outline-1 outline-[var(--color-accent)]"
         />
       ) : (
         <span className="flex-1 truncate">{note.frontmatter.title || note.fileName}</span>
@@ -208,7 +171,12 @@ function FolderItem({
         />
         <Icon icon="uil:folder" className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
         {isRenaming ? (
-          <RenameInput initial={node.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
+          <RenameInput
+            initial={node.name}
+            onCommit={onRenameCommit}
+            onCancel={onRenameCancel}
+            className="flex-1 rounded bg-[var(--color-bg)] px-1 text-sm text-[var(--color-text)] outline outline-1 outline-[var(--color-accent)]"
+          />
         ) : (
           <span className="flex-1 truncate">{node.name}</span>
         )}
@@ -247,7 +215,7 @@ function isNote(value: unknown): value is Note {
 }
 
 export function FileTree({ notes, vault }: Props) {
-  const { selectedNoteId, selectNote, knownFolderPaths, addNote, updateNote, removeNote } =
+  const { selectedNoteId, selectNote, knownFolderPaths, addNote, updateNote, removeNote, renameNote } =
     useNoteStore();
   const { setView } = useUIStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -317,23 +285,8 @@ export function FileTree({ notes, vault }: Props) {
   }
 
   async function handleRenameNote(note: Note, newTitle: string) {
-    if (!newTitle || newTitle === note.frontmatter.title) {
-      setRenamingPath(null);
-      return;
-    }
-    const folder = note.filePath.split("/").slice(0, -1).join("/");
-    const newFileName = `${slugify(newTitle)}.md`;
-    const newFilePath = `${folder}/${newFileName}`;
-    const updated: Note = {
-      ...note,
-      filePath: newFilePath,
-      fileName: newFileName,
-      frontmatter: { ...note.frontmatter, title: newTitle },
-    };
     try {
-      await tauriCommands.renameNote(note.filePath, newFilePath);
-      await tauriCommands.writeNote(newFilePath, serializeNote(updated));
-      updateNote(updated);
+      await renameNote(note, newTitle);
     } catch (e) {
       console.error("Failed to rename note:", e);
     }

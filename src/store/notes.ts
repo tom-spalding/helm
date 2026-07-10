@@ -4,6 +4,8 @@
  * full-text search index for note discovery.
  */
 import { create } from "zustand";
+import { serializeNote, slugify } from "../lib/note-parser";
+import { tauriCommands } from "../lib/tauri-commands";
 import { buildIndex, type NoteIndex, searchNotes } from "../lib/search";
 import type { Note, VaultConfig } from "../types/note";
 
@@ -93,6 +95,12 @@ interface NoteStore {
   search: (query: string) => void;
   /** Replace the known folder paths (called on vault load and dir change events) */
   setKnownFolderPaths: (paths: string[]) => void;
+  /**
+   * Rename a note: updates the title in frontmatter, re-slugifies the filename,
+   * calls Tauri to rename + rewrite the file, then updates the store.
+   * No-ops if newTitle is empty or unchanged.
+   */
+  renameNote: (note: Note, newTitle: string) => Promise<void>;
 }
 
 /**
@@ -154,4 +162,20 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     set({ searchQuery: query, searchResults: results });
   },
   setKnownFolderPaths: (paths) => set({ knownFolderPaths: paths }),
+
+  renameNote: async (note, newTitle) => {
+    if (!newTitle || newTitle === note.frontmatter.title) return;
+    const folder = note.filePath.split("/").slice(0, -1).join("/");
+    const newFileName = `${slugify(newTitle)}.md`;
+    const newFilePath = `${folder}/${newFileName}`;
+    const updated: Note = {
+      ...note,
+      filePath: newFilePath,
+      fileName: newFileName,
+      frontmatter: { ...note.frontmatter, title: newTitle },
+    };
+    await tauriCommands.renameNote(note.filePath, newFilePath);
+    await tauriCommands.writeNote(newFilePath, serializeNote(updated));
+    get().updateNote(updated);
+  },
 }));

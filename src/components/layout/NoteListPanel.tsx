@@ -10,6 +10,7 @@ import { useTrashStore } from "../../store/trash";
 import { useUIStore } from "../../store/ui";
 import type { Note } from "../../types/note";
 import { ContextMenu, type ContextMenuItem } from "../sidebar/ContextMenu";
+import { RenameInput } from "../sidebar/RenameInput";
 
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
@@ -25,10 +26,13 @@ export function NoteListPanel() {
     updateNote,
     removeNote,
     knownFolderPaths,
+    renameNote,
   } = useNoteStore();
   const { items: trashItems, removeFromTrash, permanentlyDelete, addToTrash } = useTrashStore();
   const [search, setSearch] = useState("");
   const [menu, setMenu] = useState<MenuState>(null);
+  // null means no note is being renamed inline
+  const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
 
   const vault = vaults.find((v) => v.id === activeVaultId) ?? vaults[0];
 
@@ -156,6 +160,15 @@ export function NoteListPanel() {
     }
   }
 
+  async function handleRenameNote(note: Note, newTitle: string) {
+    try {
+      await renameNote(note, newTitle);
+    } catch (e) {
+      console.error("Failed to rename note:", e);
+    }
+    setRenamingNoteId(null);
+  }
+
   async function handleDeleteNote(note: Note) {
     const ok = await confirm(`Move "${note.frontmatter.title || "Untitled"}" to Trash?`, {
       title: "Move to Trash",
@@ -252,69 +265,86 @@ export function NoteListPanel() {
           <ul className="py-1">
             {filteredNotes.map((note) => (
               <li key={note.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigate({ view: "notes", selectedNoteId: note.id, selectedGrouping });
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      items: [
-                        {
-                          kind: "action",
-                          label: note.frontmatter.pinned ? "Unpin" : "Pin",
-                          onClick: () => handlePinToggle(note),
-                        },
-                        {
-                          kind: "action",
-                          label: note.frontmatter.locked ? "Unlock" : "Lock",
-                          onClick: () => handleFrontmatterToggle(note, "locked"),
-                        },
-                        {
-                          kind: "action",
-                          label: note.frontmatter.unmanaged ? "Mark Managed" : "Mark Unmanaged",
-                          onClick: () => handleFrontmatterToggle(note, "unmanaged"),
-                        },
-                        {
-                          kind: "submenu",
-                          label: "Move to…",
-                          items: allFolders.map((f) => ({
-                            label: f.label,
-                            onClick: () => handleMoveNote(note, f.path),
-                          })),
-                        },
-                        { kind: "separator" },
-                        {
-                          kind: "action",
-                          label: "Delete",
-                          danger: true,
-                          onClick: () => handleDeleteNote(note),
-                        },
-                      ],
-                    });
-                  }}
-                  className={`flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
-                    note.id === selectedNoteId ? "bg-base-300" : "hover:bg-base-200"
-                  }`}
-                >
-                  <span className="w-full truncate text-sm font-medium">
-                    {note.frontmatter.title || "Untitled"}
-                  </span>
-                  <span className="text-xs opacity-40">{note.frontmatter.updated}</span>
-                  {note.frontmatter.tags.length > 0 && (
-                    <div className="mt-0.5 flex flex-wrap gap-1">
-                      {note.frontmatter.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="badge badge-ghost badge-xs">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </button>
+                {renamingNoteId === note.id ? (
+                  // Inline rename — takes over the row; clicking away commits
+                  <div className="px-3 py-2.5">
+                    <RenameInput
+                      initial={note.frontmatter.title}
+                      onCommit={(v) => handleRenameNote(note, v)}
+                      onCancel={() => setRenamingNoteId(null)}
+                      className="w-full rounded bg-base-100 px-1 text-sm font-medium text-base-content outline outline-1 outline-primary"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate({ view: "notes", selectedNoteId: note.id, selectedGrouping });
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        items: [
+                          {
+                            kind: "action",
+                            label: note.frontmatter.pinned ? "Unpin" : "Pin",
+                            onClick: () => handlePinToggle(note),
+                          },
+                          {
+                            kind: "action",
+                            label: "Rename",
+                            onClick: () => setRenamingNoteId(note.id),
+                          },
+                          {
+                            kind: "action",
+                            label: note.frontmatter.locked ? "Unlock" : "Lock",
+                            onClick: () => handleFrontmatterToggle(note, "locked"),
+                          },
+                          {
+                            kind: "action",
+                            label: note.frontmatter.unmanaged ? "Mark Managed" : "Mark Unmanaged",
+                            onClick: () => handleFrontmatterToggle(note, "unmanaged"),
+                          },
+                          {
+                            kind: "submenu",
+                            label: "Move to…",
+                            items: allFolders.map((f) => ({
+                              label: f.label,
+                              onClick: () => handleMoveNote(note, f.path),
+                            })),
+                          },
+                          { kind: "separator" },
+                          {
+                            kind: "action",
+                            label: "Delete",
+                            danger: true,
+                            onClick: () => handleDeleteNote(note),
+                          },
+                        ],
+                      });
+                    }}
+                    className={`flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
+                      note.id === selectedNoteId ? "bg-base-300" : "hover:bg-base-200"
+                    }`}
+                  >
+                    <span className="w-full truncate text-sm font-medium">
+                      {note.frontmatter.title || "Untitled"}
+                    </span>
+                    <span className="text-xs opacity-40">{note.frontmatter.updated}</span>
+                    {note.frontmatter.tags.length > 0 && (
+                      <div className="mt-0.5 flex flex-wrap gap-1">
+                        {note.frontmatter.tags.slice(0, 3).map((tag) => (
+                          <span key={tag} className="badge badge-ghost badge-xs">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
