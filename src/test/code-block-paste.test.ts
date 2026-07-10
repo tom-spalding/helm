@@ -3,31 +3,8 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { describe, expect, it } from "vitest";
+import { handleTextPaste } from "../components/editor/extensions";
 import { lowlight } from "../lib/lowlight";
-
-// Mirrors the code-block branch of handlePaste in NoteEditor.tsx.
-// When the selection is inside a codeBlock, paste the plain text verbatim
-// (no markdown re-parsing). Otherwise fall through to tiptap-markdown's
-// clipboardTextParser. Returns true when it handled the paste.
-// biome-ignore lint/suspicious/noExplicitAny: ProseMirror EditorView type not re-exported
-function pasteText(view: any, text: string): boolean {
-  if (text && view.state.selection.$from.parent.type.name === "codeBlock") {
-    view.dispatch(view.state.tr.insertText(text));
-    return true;
-  }
-  let handled = false;
-  // biome-ignore lint/suspicious/noExplicitAny: ProseMirror someProp callback is untyped
-  view.someProp("clipboardTextParser", (f: any) => {
-    const slice = f(text, view.state.selection.$from, false, view);
-    if (slice) {
-      view.dispatch(view.state.tr.replaceSelection(slice));
-      handled = true;
-    }
-    return !!slice;
-  });
-  if (!handled) view.dispatch(view.state.tr.insertText(text));
-  return true;
-}
 
 function makeEditor(content: string) {
   return new Editor({
@@ -58,7 +35,7 @@ describe("code-block paste", () => {
     expect(editor.isActive("codeBlock")).toBe(true);
 
     const json = '{\n  "a": 1,\n  "b": [2, 3]\n}';
-    pasteText(editor.view, json);
+    handleTextPaste(editor.view, json);
 
     const { $from } = editor.state.selection;
     // Selection is still inside the code block after paste
@@ -84,7 +61,7 @@ describe("code-block paste", () => {
     // Markdown pasted outside a code block still runs through tiptap-markdown's
     // clipboardTextParser, so a heading marker becomes an actual heading node —
     // proving the outside-block path is unchanged.
-    pasteText(editor.view, "# Heading");
+    handleTextPaste(editor.view, "# Heading");
 
     let sawHeading = false;
     editor.state.doc.descendants((node) => {

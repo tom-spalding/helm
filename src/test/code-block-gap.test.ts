@@ -1,66 +1,9 @@
 import { Editor } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import { TextSelection } from "@tiptap/pm/state";
-import { Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { lowlight } from "../lib/lowlight";
 import { describe, expect, it } from "vitest";
-
-// Mirror of the CodeBlockGapCursor extension that lives in NoteEditor.tsx.
-// Keep this inline so the test is self-contained (same convention as
-// heading-keyboard-fix.test.ts).
-const CodeBlockGapCursor = Extension.create({
-  name: "codeBlockGapCursor",
-  addKeyboardShortcuts() {
-    // Insert an empty paragraph adjacent to the current code block when the
-    // neighbour in the arrow direction is another code block (or the doc edge),
-    // so the user always has a text slot between/around back-to-back blocks.
-    const insertParagraph = (
-      editor: Editor,
-      side: "before" | "after",
-    ): boolean => {
-      const { state } = editor;
-      const { $from, empty } = state.selection;
-      if (!empty) return false;
-      if ($from.parent.type.name !== "codeBlock") return false;
-
-      // Must be at the very start (ArrowUp) or very end (ArrowDown) of the block.
-      const atStart = $from.parentOffset === 0;
-      const atEnd = $from.parentOffset === $from.parent.content.size;
-      if (side === "before" && !atStart) return false;
-      if (side === "after" && !atEnd) return false;
-
-      const codeBlockDepth = $from.depth;
-      const index = $from.index(codeBlockDepth - 1);
-      const parent = $from.node(codeBlockDepth - 1);
-      const sibling =
-        side === "before" ? parent.maybeChild(index - 1) : parent.maybeChild(index + 1);
-      const siblingIsCodeBlock = sibling?.type.name === "codeBlock";
-      const atDocEdge = side === "before" ? index === 0 : index === parent.childCount - 1;
-
-      // Only intervene when default navigation would trap the user: an adjacent
-      // code block, or the code block sitting at the very edge of the document.
-      if (!siblingIsCodeBlock && !atDocEdge) return false;
-
-      const paragraph = state.schema.nodes.paragraph;
-      if (!paragraph) return false;
-
-      const insertPos = side === "before" ? $from.before(codeBlockDepth) : $from.after(codeBlockDepth);
-      return editor.commands.command(({ tr, dispatch }) => {
-        const paragraphNode = paragraph.create();
-        tr.insert(insertPos, paragraphNode);
-        tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
-        dispatch?.(tr);
-        return true;
-      });
-    };
-
-    return {
-      ArrowDown: ({ editor }) => insertParagraph(editor, "after"),
-      ArrowUp: ({ editor }) => insertParagraph(editor, "before"),
-    };
-  },
-});
+import { CodeBlockGapCursor } from "../components/editor/extensions";
+import { lowlight } from "../lib/lowlight";
 
 function makeEditor() {
   return new Editor({
@@ -82,7 +25,9 @@ function makeEditor() {
 
 function nodeTypes(editor: Editor): string[] {
   const types: string[] = [];
-  editor.state.doc.forEach((node) => types.push(node.type.name));
+  editor.state.doc.forEach((node) => {
+    types.push(node.type.name);
+  });
   return types;
 }
 

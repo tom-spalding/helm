@@ -1,29 +1,12 @@
-import { describe, expect, it } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import Paragraph from "@tiptap/extension-paragraph";
 import { Markdown } from "tiptap-markdown";
+import { describe, expect, it } from "vitest";
+import { ParagraphMarkdown } from "../components/editor/extensions";
 
-// Mirror NoteEditor's ParagraphMarkdown so the document structure produced here
-// matches production (StarterKit configured with paragraph:false + custom paragraph).
-const ParagraphMarkdown = Paragraph.extend({
-  addStorage() {
-    return {
-      markdown: {
-        // biome-ignore lint/suspicious/noExplicitAny: serializer types not exported
-        serialize(state: any, node: any) {
-          if (node.childCount === 0 || node.textContent === "\u00A0") {
-            state.write("\u00A0");
-          } else {
-            state.renderInline(node);
-          }
-          state.closeBlock(node);
-        },
-      },
-    };
-  },
-});
-
+// Uses NoteEditor's real ParagraphMarkdown so the document structure produced
+// here matches production (StarterKit configured with paragraph:false + custom
+// paragraph).
 function makeEditor() {
   return new Editor({
     extensions: [
