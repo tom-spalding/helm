@@ -102,11 +102,11 @@ export function extractWikiLinks(content: string): string[] {
 // Matches 3- or 6-digit hex color values (e.g. fff, ff0000)
 const HEX_COLOR_RE = /^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/;
 
+// KEEP IN SYNC with mcp-server/index.ts extractInlineTags — the app and the
+// MCP server must agree on what counts as a tag or vault writes will drift.
 export function extractInlineTags(content: string): string[] {
   // Strip fenced code blocks and inline code so their content never produces tags
-  const stripped = content
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`]*`/g, "");
+  const stripped = content.replace(/```[\s\S]*?```/g, "").replace(/`[^`]*`/g, "");
 
   const seen = new Set<string>();
   for (const match of stripped.matchAll(/(?:^|[^a-zA-Z0-9])#([a-zA-Z][a-zA-Z0-9/_-]*)/g)) {
