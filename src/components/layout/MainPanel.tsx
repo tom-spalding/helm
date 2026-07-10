@@ -25,6 +25,7 @@ import { KanbanView } from "../../views/KanbanView";
 import { BacklinksPanel } from "../editor/BacklinksPanel";
 import { FindReplaceBar } from "../editor/FindReplaceBar";
 import { NoteEditor, type NoteEditorHandle } from "../editor/NoteEditor";
+import { NoteHistoryModal } from "../editor/NoteHistoryModal";
 import { PropertyPanel } from "../editor/PropertyPanel";
 
 interface MarkdownTextareaHandle {
@@ -185,14 +186,18 @@ function extractAssetPaths(content: string): Set<string> {
 
 export function MainPanel() {
   const { activeView, markdownMode, setMarkdownMode, toggleMarkdownMode } = useUIStore();
-  const { notes, selectedNoteId, updateNote, setNoteTitleLive, removeNote, selectNote } =
+  const { notes, vaults, selectedNoteId, updateNote, setNoteTitleLive, removeNote, selectNote } =
     useNoteStore();
   const { settings } = useSettingsStore();
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
   const editorRef = useRef<NoteEditorHandle>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [findExpanded, setFindExpanded] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const markdownTextareaRef = useRef<MarkdownTextareaHandle>(null);
+  const selectedVaultPath = selectedNote
+    ? (vaults.find((v) => v.id === selectedNote.vaultId)?.path ?? null)
+    : null;
 
   // Reset mode to default when switching notes
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedNoteId is intentionally included — the view mode and find bar must reset on every note switch
@@ -200,6 +205,7 @@ export function MainPanel() {
     setMarkdownMode(settings.defaultNoteView === "markdown");
     setFindOpen(false);
     setFindExpanded(false);
+    setHistoryOpen(false);
   }, [selectedNoteId, settings.defaultNoteView, setMarkdownMode]);
 
   useEffect(() => {
@@ -243,6 +249,18 @@ export function MainPanel() {
 
   async function handleSave(content: string) {
     if (!selectedNote) return;
+
+    // Time machine: snapshot the current on-disk content before overwriting.
+    // Rust coalesces rapid autosaves (min 5 min between snapshots) and prunes
+    // old versions, so this is safe to fire on every save.
+    if (selectedVaultPath) {
+      tauriCommands
+        .snapshotNote(selectedVaultPath, selectedNote.id, selectedNote.filePath)
+        .catch(() => {
+          /* snapshotting must never block a save */
+        });
+    }
+
     const inlineTags = extractInlineTags(content);
     const wikiTitles = extractWikiLinks(content);
     const linkedIds = wikiTitles
@@ -338,7 +356,16 @@ export function MainPanel() {
               onDelete={selectedNote.frontmatter.locked ? undefined : handleDelete}
               markdownMode={markdownMode}
               onToggleMarkdown={toggleMarkdownMode}
+              onShowHistory={selectedVaultPath ? () => setHistoryOpen(true) : undefined}
             />
+            {historyOpen && selectedVaultPath && (
+              <NoteHistoryModal
+                note={selectedNote}
+                vaultPath={selectedVaultPath}
+                onClose={() => setHistoryOpen(false)}
+                onRestore={handleSave}
+              />
+            )}
             {markdownMode ? (
               <MarkdownTextarea
                 key={selectedNote.id}

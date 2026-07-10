@@ -7,6 +7,12 @@ export interface NoteFile {
   content: string;
 }
 
+export interface HistoryEntry {
+  /** Snapshot time as unix epoch milliseconds */
+  ts_ms: number;
+  path: string;
+}
+
 export const tauriCommands = {
   // Legacy — used only for migration from single-vault config
   getVaultPath: (): Promise<string | null> => invoke("get_vault_path"),
@@ -41,6 +47,14 @@ export const tauriCommands = {
   // Deletes a non-markdown asset file; the Rust side refuses .md paths so a bad
   // asset-path extraction can never delete a note.
   deleteAsset: (filePath: string): Promise<void> => invoke("delete_asset", { filePath }),
+
+  // Snapshot the note's current on-disk content into <vault>/.helm-history/<noteId>/.
+  // Coalesced (min 5 min between snapshots) and pruned (50 kept) on the Rust side.
+  snapshotNote: (vaultPath: string, noteId: string, filePath: string): Promise<void> =>
+    invoke("snapshot_note", { vaultPath, noteId, filePath }),
+
+  listNoteHistory: (vaultPath: string, noteId: string): Promise<HistoryEntry[]> =>
+    invoke("list_note_history", { vaultPath, noteId }),
 
   listFolders: (vaultPath: string): Promise<string[]> => invoke("list_folders", { vaultPath }),
 

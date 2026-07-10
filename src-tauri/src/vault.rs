@@ -98,6 +98,11 @@ fn collect_notes(dir: &PathBuf, notes: &mut Vec<NoteFile>) -> Result<(), String>
         let entry = entry.map_err(|e| e.to_string())?;
         let file_path = entry.path();
         if file_path.is_dir() {
+            // Skip hidden dirs (.git, .helm-history, .obsidian, …) — their .md
+            // files are not vault notes.
+            if entry.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
             collect_notes(&file_path, notes)?;
         } else if file_path.extension().and_then(|e| e.to_str()) == Some("md") {
             let content = fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
@@ -188,6 +193,118 @@ fn write_asset_impl(vault_path: &str, filename: &str, data: &[u8]) -> Result<Str
 #[tauri::command]
 pub async fn write_asset(vault_path: String, filename: String, data: Vec<u8>) -> Result<String, String> {
     write_asset_impl(&vault_path, &filename, &data)
+}
+
+/// True when any path component is a dot-directory/file (".helm-history", ".git", …).
+fn is_hidden_path(path: &std::path::Path) -> bool {
+    path.components().any(|c| match c {
+        std::path::Component::Normal(name) => name.to_string_lossy().starts_with('.'),
+        _ => false,
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HistoryEntry {
+    /// Snapshot time as unix epoch milliseconds (also the filename stem)
+    pub ts_ms: u64,
+    pub path: String,
+}
+
+fn history_dir(vault: &std::path::Path, note_id: &str) -> Result<PathBuf, String> {
+    // Note ids are ULIDs (alphanumeric); reject anything else so an id can
+    // never become a path traversal vector.
+    if note_id.is_empty() || !note_id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(format!("Invalid note id: {}", note_id));
+    }
+    Ok(vault.join(".helm-history").join(note_id))
+}
+
+fn list_note_history_impl(vault_path: &str, note_id: &str) -> Result<Vec<HistoryEntry>, String> {
+    let vault = validate_path(vault_path)?;
+    let dir = history_dir(&vault, note_id)?;
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        if let Some(ts_ms) = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.parse::<u64>().ok())
+        {
+            entries.push(HistoryEntry {
+                ts_ms,
+                path: path.to_string_lossy().to_string(),
+            });
+        }
+    }
+    entries.sort_by(|a, b| b.ts_ms.cmp(&a.ts_ms));
+    Ok(entries)
+}
+
+/// Snapshot the note's current on-disk content into the vault's history dir.
+/// Skips when the newest snapshot is younger than `min_age_secs` (coalescing
+/// rapid autosaves) and prunes the history to the `max_keep` newest entries.
+fn snapshot_note_impl(
+    vault_path: &str,
+    note_id: &str,
+    file_path: &str,
+    min_age_secs: u64,
+    max_keep: usize,
+) -> Result<(), String> {
+    let vault = validate_path(vault_path)?;
+    let src = validate_path(file_path)?;
+    if !src.exists() {
+        return Ok(()); // nothing to snapshot (new note)
+    }
+    let dir = history_dir(&vault, note_id)?;
+
+    let existing = list_note_history_impl(vault_path, note_id)?;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis() as u64;
+    if let Some(newest) = existing.first() {
+        if now_ms.saturating_sub(newest.ts_ms) < min_age_secs * 1000 {
+            return Ok(());
+        }
+    }
+
+    let content = fs::read(&src).map_err(|e| e.to_string())?;
+    // Bump the timestamp if a snapshot already landed in this millisecond
+    let mut ts = now_ms;
+    while dir.join(format!("{}.md", ts)).exists() {
+        ts += 1;
+    }
+    atomic_write(&dir.join(format!("{}.md", ts)), &content)?;
+
+    let mut entries = list_note_history_impl(vault_path, note_id)?;
+    if entries.len() > max_keep {
+        for old in entries.split_off(max_keep) {
+            let _ = fs::remove_file(&old.path);
+        }
+    }
+    Ok(())
+}
+
+/// How long a snapshot must age before a newer one is taken (coalesces autosaves).
+const HISTORY_MIN_AGE_SECS: u64 = 300;
+/// Maximum snapshots kept per note.
+const HISTORY_MAX_KEEP: usize = 50;
+
+#[tauri::command]
+pub async fn snapshot_note(vault_path: String, note_id: String, file_path: String) -> Result<(), String> {
+    snapshot_note_impl(&vault_path, &note_id, &file_path, HISTORY_MIN_AGE_SECS, HISTORY_MAX_KEEP)
+}
+
+#[tauri::command]
+pub async fn list_note_history(vault_path: String, note_id: String) -> Result<Vec<HistoryEntry>, String> {
+    list_note_history_impl(&vault_path, &note_id)
 }
 
 fn delete_asset_impl(file_path: &str) -> Result<(), String> {
@@ -298,6 +415,93 @@ mod tests {
     }
 
     #[test]
+    fn list_notes_impl_skips_hidden_directories() {
+        let dir = temp_dir("skip-hidden");
+        fs::write(dir.join("real.md"), "real note").unwrap();
+        let hidden = dir.join(".helm-history").join("01ABC");
+        fs::create_dir_all(&hidden).unwrap();
+        fs::write(hidden.join("123.md"), "old snapshot").unwrap();
+
+        let notes = list_notes_impl(dir.to_str().unwrap()).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].file_name, "real.md");
+    }
+
+    #[test]
+    fn snapshot_note_copies_current_content_into_history() {
+        let dir = temp_dir("snap-basic");
+        let note = dir.join("note.md");
+        fs::write(&note, "version one").unwrap();
+
+        snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 0, 50).unwrap();
+
+        let entries = list_note_history_impl(dir.to_str().unwrap(), "01ABC").unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(fs::read_to_string(&entries[0].path).unwrap(), "version one");
+    }
+
+    #[test]
+    fn snapshot_note_is_a_noop_when_the_file_does_not_exist() {
+        let dir = temp_dir("snap-missing");
+        let note = dir.join("nope.md");
+        snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 0, 50).unwrap();
+        let entries = list_note_history_impl(dir.to_str().unwrap(), "01ABC").unwrap();
+        assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn snapshot_note_coalesces_snapshots_younger_than_min_age() {
+        let dir = temp_dir("snap-coalesce");
+        let note = dir.join("note.md");
+        fs::write(&note, "v1").unwrap();
+        snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 300, 50).unwrap();
+        fs::write(&note, "v2").unwrap();
+        // Second snapshot within the 300s window is skipped
+        snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 300, 50).unwrap();
+
+        let entries = list_note_history_impl(dir.to_str().unwrap(), "01ABC").unwrap();
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn snapshot_note_prunes_to_max_keep_oldest_first() {
+        let dir = temp_dir("snap-prune");
+        let note = dir.join("note.md");
+        for i in 0..5 {
+            fs::write(&note, format!("v{}", i)).unwrap();
+            snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 0, 3).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let entries = list_note_history_impl(dir.to_str().unwrap(), "01ABC").unwrap();
+        assert_eq!(entries.len(), 3);
+        // Newest first; the newest snapshot holds the most recent pre-save content
+        assert_eq!(fs::read_to_string(&entries[0].path).unwrap(), "v4");
+    }
+
+    #[test]
+    fn list_note_history_returns_newest_first() {
+        let dir = temp_dir("snap-order");
+        let note = dir.join("note.md");
+        fs::write(&note, "a").unwrap();
+        snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 0, 50).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        fs::write(&note, "b").unwrap();
+        snapshot_note_impl(dir.to_str().unwrap(), "01ABC", note.to_str().unwrap(), 0, 50).unwrap();
+
+        let entries = list_note_history_impl(dir.to_str().unwrap(), "01ABC").unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].ts_ms > entries[1].ts_ms);
+        assert_eq!(fs::read_to_string(&entries[0].path).unwrap(), "b");
+    }
+
+    #[test]
+    fn hidden_paths_are_detected() {
+        assert!(is_hidden_path(std::path::Path::new("/v/.helm-history/01A/1.md")));
+        assert!(is_hidden_path(std::path::Path::new("/v/.git/x.md")));
+        assert!(!is_hidden_path(std::path::Path::new("/v/notes/real.md")));
+    }
+
+    #[test]
     fn delete_asset_impl_refuses_markdown_files() {
         let dir = temp_dir("asset-refuse-md");
         let md = dir.join("note.md");
@@ -342,6 +546,12 @@ pub async fn watch_vault(app: AppHandle, vault_path: String) -> Result<(), Strin
                     .paths
                     .iter()
                     .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("md"))
+                    // Ignore .md files under hidden dirs (history snapshots, .git, …)
+                    .filter(|p| {
+                        !p.strip_prefix(&vault_path)
+                            .map(is_hidden_path)
+                            .unwrap_or(false)
+                    })
                     .map(|p| p.to_string_lossy().to_string())
                     .collect();
                 if !md_paths.is_empty() {

@@ -157,20 +157,35 @@ ${envBlock}
 
           {/* Step 4 */}
           <section>
-            <StepHeader n={4} title="Try it out" />
+            <StepHeader n={4} title="Try it — example prompts" />
             <p className="mb-3 text-sm text-[var(--color-text-muted)]">
               Paste one of these into Claude to get started:
             </p>
             <div className="flex flex-col gap-2">
               {[
-                "Use get_rules to learn my Helm vault, then give me a daily standup.",
-                "Search my Helm notes for anything related to [topic] and summarize what you find.",
-                "Run a weekly_review of my Helm vault.",
-                "Create a note in Helm: [your idea here]",
+                { text: "What should I focus on today?", hint: "get_briefing" },
+                {
+                  text: "Capture this idea: try spaced repetition for reading notes",
+                  hint: "create_note",
+                },
+                {
+                  text: "What did my Project Alpha note say last week? Restore it if the current version lost the budget section.",
+                  hint: "note history",
+                },
+                {
+                  text: "Find everything blocked and tell me what's blocking it",
+                  hint: "list_notes",
+                },
+                { text: "Summarize my #work/quarterly notes", hint: "search + read" },
+                { text: "Run a weekly_review of my Helm vault.", hint: "prompt" },
               ].map((prompt) => (
-                <PromptChip key={prompt} text={prompt} />
+                <PromptChip key={prompt.text} text={prompt.text} hint={prompt.hint} />
               ))}
             </div>
+            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+              Edits are safe to experiment with — every update or delete snapshots the previous
+              version first, so Claude can always restore an older copy.
+            </p>
           </section>
 
           {/* Vaults detected */}
@@ -239,7 +254,7 @@ function CodeBlock({ code }: { code: string }) {
   );
 }
 
-function PromptChip({ text }: { text: string }) {
+function PromptChip({ text, hint }: { text: string; hint?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -252,6 +267,11 @@ function PromptChip({ text }: { text: string }) {
       className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-left text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-accent)]/50 transition-colors group"
     >
       <span className="flex-1 font-mono text-xs">{text}</span>
+      {hint && (
+        <span className="shrink-0 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-mono opacity-60">
+          {hint}
+        </span>
+      )}
       <span className="shrink-0 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
         {copied ? "Copied!" : "Copy"}
       </span>

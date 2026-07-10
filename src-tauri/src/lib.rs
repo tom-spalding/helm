@@ -1,9 +1,33 @@
 mod vault;
 use vault::*;
-use tauri::Emitter;
 use tauri::menu::{
     AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
 };
+use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
+/// Show (or lazily create) the always-on-top quick-capture window.
+fn open_capture_window(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("capture") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return;
+    }
+    let result = tauri::WebviewWindowBuilder::new(
+        app,
+        "capture",
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("Quick Capture")
+    .inner_size(560.0, 200.0)
+    .resizable(false)
+    .always_on_top(true)
+    .center()
+    .build();
+    if let Err(e) = result {
+        eprintln!("Failed to create capture window: {e}");
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -11,6 +35,23 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // ── Global quick-capture shortcut (⌘⇧Space / Ctrl+Shift+Space) ─
+            let capture_shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::Space);
+            app.handle().plugin(
+                tauri_plugin_global_shortcut::Builder::new()
+                    .with_handler(move |app, shortcut, event| {
+                        if event.state() == ShortcutState::Pressed && shortcut == &capture_shortcut {
+                            open_capture_window(app);
+                        }
+                    })
+                    .build(),
+            )?;
+            if let Err(e) = app.global_shortcut().register(capture_shortcut) {
+                // Another app may own the combo — capture is unavailable but
+                // Helm must still start.
+                eprintln!("Failed to register quick-capture shortcut: {e}");
+            }
+
             // ── Helm (app) menu ───────────────────────────────────────────
             let about_metadata = AboutMetadataBuilder::new()
                 .version(Some(app.package_info().version.to_string()))
@@ -231,6 +272,8 @@ pub fn run() {
             watch_vault,
             write_asset,
             delete_asset,
+            snapshot_note,
+            list_note_history,
             list_folders,
             create_folder,
             delete_folder,
