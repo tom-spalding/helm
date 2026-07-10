@@ -189,14 +189,17 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { registerSaveFlusher, unregisterSaveFlusher } from "../../lib/pending-saves";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
 import { useSettingsStore } from "../../store/settings";
+import { reportError } from "../../store/toast";
 import type { Note } from "../../types/note";
 import { FindReplaceExtension } from "./findReplaceExtension";
 import { WikiLinkExtension } from "./WikiLink";
@@ -215,7 +218,7 @@ export interface NoteEditorHandle {
 
 interface NoteEditorProps {
   note: Note;
-  onSave: (content: string) => void;
+  onSave: (content: string) => void | Promise<void>;
   locked?: boolean;
   findOpen?: boolean;
 }
@@ -401,7 +404,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
                     ),
                   );
                 } catch (e) {
-                  console.error("Failed to save image:", e);
+                  reportError("Failed to save image", e);
                 }
               });
               return true;
@@ -487,7 +490,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           editor.storage as { markdown?: { getMarkdown?: () => string } }
         ).markdown?.getMarkdown?.() ?? editor.getText();
       lastSavedContentRef.current = md; // mark as our own save so the file watcher doesn't reload
-      onSave(md);
+      return onSave(md);
     }, [editor, onSave]);
 
     // Auto-save 1s after the user stops typing
@@ -496,7 +499,10 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       const handler = () => {
         if (!autoSaveRef.current) return;
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(triggerSave, 1000);
+        saveTimeoutRef.current = setTimeout(() => {
+          saveTimeoutRef.current = null;
+          triggerSave();
+        }, 1000);
       };
       editor.on("update", handler);
       return () => {
@@ -504,6 +510,22 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       };
     }, [editor, triggerSave]);
+
+    // Flush edits still inside the debounce window if the window closes.
+    const flusherId = useId();
+    useEffect(() => {
+      registerSaveFlusher(flusherId, {
+        isPending: () => saveTimeoutRef.current !== null,
+        flush: () => {
+          if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+          }
+          return triggerSave();
+        },
+      });
+      return () => unregisterSaveFlusher(flusherId);
+    }, [flusherId, triggerSave]);
 
     const handleBlur = useCallback(() => {
       if (saveTimeoutRef.current) {

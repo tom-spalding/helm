@@ -1,14 +1,18 @@
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
-import { addVault } from "./hooks/useVault";
-import { tauriCommands } from "./lib/tauri-commands";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppShell } from "./components/layout/AppShell";
 import { McpSetupModal } from "./components/McpSetupModal";
-import { useVault } from "./hooks/useVault";
-import { useThemeStore } from "./store/theme";
-import { useSettingsStore } from "./store/settings";
-import { useUIStore } from "./store/ui";
+import { ToastContainer } from "./components/ToastContainer";
+import { addVault, useVault } from "./hooks/useVault";
+import { flushPendingSaves, hasPendingSaves } from "./lib/pending-saves";
 import { DEFAULT_SETTINGS } from "./lib/settings";
+import { tauriCommands } from "./lib/tauri-commands";
+import { useSettingsStore } from "./store/settings";
+import { useThemeStore } from "./store/theme";
+import { reportError } from "./store/toast";
+import { useUIStore } from "./store/ui";
 
 const FONT_MIN = 12;
 const FONT_MAX = 24;
@@ -33,22 +37,31 @@ export default function App() {
             const path = await tauriCommands.openFolderDialog();
             if (path) await addVault(path);
           } catch (e) {
-            console.error("Failed to add vault:", e);
+            reportError("Failed to add vault", e);
           }
         }),
       );
-      fns.push(await listen<string>("set-theme", (e) => useThemeStore.getState().setTheme(e.payload)));
+      fns.push(
+        await listen<string>("set-theme", (e) => useThemeStore.getState().setTheme(e.payload)),
+      );
       fns.push(
         await listen<string>("font-size-change", (e) => {
           const { settings, updateSettings } = useSettingsStore.getState();
           if (e.payload === "reset") updateSettings({ fontSize: DEFAULT_SETTINGS.fontSize });
-          else if (e.payload === "increase") updateSettings({ fontSize: Math.min(FONT_MAX, settings.fontSize + 1) });
-          else if (e.payload === "decrease") updateSettings({ fontSize: Math.max(FONT_MIN, settings.fontSize - 1) });
+          else if (e.payload === "increase")
+            updateSettings({ fontSize: Math.min(FONT_MAX, settings.fontSize + 1) });
+          else if (e.payload === "decrease")
+            updateSettings({ fontSize: Math.max(FONT_MIN, settings.fontSize - 1) });
         }),
       );
 
-      if (cancelled) fns.forEach((fn) => fn());
-      else teardown = () => fns.forEach((fn) => fn());
+      if (cancelled) {
+        for (const fn of fns) fn();
+      } else {
+        teardown = () => {
+          for (const fn of fns) fn();
+        };
+      }
     };
 
     setup();
@@ -56,6 +69,33 @@ export default function App() {
       cancelled = true;
       teardown?.();
     };
+  }, []);
+
+  // Flush any debounced autosaves before the window closes so edits made in
+  // the last second are never lost on quit.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let closing = false;
+
+    getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        if (closing || !hasPendingSaves()) return;
+        event.preventDefault();
+        closing = true;
+        try {
+          await flushPendingSaves();
+        } finally {
+          void getCurrentWindow().destroy();
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {
+        // Not running inside a Tauri window (tests, plain browser dev)
+      });
+
+    return () => unlisten?.();
   }, []);
 
   if (loading) {
@@ -75,9 +115,10 @@ export default function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <AppShell />
       {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
-    </>
+      <ToastContainer />
+    </ErrorBoundary>
   );
 }

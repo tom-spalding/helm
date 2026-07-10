@@ -2,6 +2,7 @@ import { ulid } from "ulid";
 import { noteFilePath, serializeNote } from "../lib/note-parser";
 import { tauriCommands } from "../lib/tauri-commands";
 import { useNoteStore } from "../store/notes";
+import { reportError } from "../store/toast";
 import { useUIStore } from "../store/ui";
 import type { Note } from "../types/note";
 
@@ -45,7 +46,7 @@ export function useCreateNote() {
       selectNote(id);
       setView("notes");
     } catch (e) {
-      console.error("Failed to create note:", e);
+      reportError("Failed to create note", e);
     }
   }
 

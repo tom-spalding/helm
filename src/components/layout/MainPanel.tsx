@@ -1,10 +1,20 @@
-import { confirm } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { extractInlineTags, extractWikiLinks, serializeNote } from "../../lib/note-parser";
+import { registerSaveFlusher, unregisterSaveFlusher } from "../../lib/pending-saves";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
 import { useSettingsStore } from "../../store/settings";
+import { reportError } from "../../store/toast";
 import { useTrashStore } from "../../store/trash";
 import { useUIStore } from "../../store/ui";
 import type { NoteFrontmatter } from "../../types/note";
@@ -24,11 +34,12 @@ interface MarkdownTextareaHandle {
 
 const MarkdownTextarea = forwardRef<
   MarkdownTextareaHandle,
-  { content: string; onSave: (md: string) => void; locked?: boolean }
+  { content: string; onSave: (md: string) => void | Promise<void>; locked?: boolean }
 >(function MarkdownTextarea({ content, onSave, locked }, ref) {
   const [value, setValue] = useState(content);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flusherId = useId();
 
   const flush = useCallback(() => {
     if (saveTimer.current) {
@@ -37,6 +48,28 @@ const MarkdownTextarea = forwardRef<
     }
     onSave(value);
   }, [onSave, value]);
+
+  // Read latest state through refs so the flusher registered on mount never
+  // captures stale values.
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
+  // Flush edits still inside the debounce window if the window closes.
+  useEffect(() => {
+    registerSaveFlusher(flusherId, {
+      isPending: () => saveTimer.current !== null,
+      flush: () => {
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        return onSaveRef.current(valueRef.current);
+      },
+    });
+    return () => unregisterSaveFlusher(flusherId);
+  }, [flusherId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!e.metaKey && !e.ctrlKey) return;
@@ -64,7 +97,10 @@ const MarkdownTextarea = forwardRef<
     const next = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
     setValue(next);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => onSave(next), 1000);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      onSave(next);
+    }, 1000);
 
     // Restore selection inside the wrapping characters
     requestAnimationFrame(() => {
@@ -78,7 +114,10 @@ const MarkdownTextarea = forwardRef<
     const next = e.target.value;
     setValue(next);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => onSave(next), 1000);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      onSave(next);
+    }, 1000);
   };
 
   useEffect(
@@ -97,7 +136,10 @@ const MarkdownTextarea = forwardRef<
       replaceContent(newContent: string) {
         setValue(newContent);
         if (saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current = setTimeout(() => onSave(newContent), 1000);
+        saveTimer.current = setTimeout(() => {
+          saveTimer.current = null;
+          onSave(newContent);
+        }, 1000);
       },
     }),
     [onSave],
@@ -153,6 +195,7 @@ export function MainPanel() {
   const markdownTextareaRef = useRef<MarkdownTextareaHandle>(null);
 
   // Reset mode to default when switching notes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedNoteId is intentionally included — the view mode and find bar must reset on every note switch
   useEffect(() => {
     setMarkdownMode(settings.defaultNoteView === "markdown");
     setFindOpen(false);
@@ -193,7 +236,9 @@ export function MainPanel() {
         }),
       );
     })();
-    return () => unlisteners.forEach((fn) => fn());
+    return () => {
+      for (const fn of unlisteners) fn();
+    };
   }, []);
 
   async function handleSave(content: string) {
@@ -220,7 +265,7 @@ export function MainPanel() {
     try {
       await tauriCommands.writeNote(updated.filePath, serializeNote(updated));
     } catch (e) {
-      console.error("Failed to save note:", e);
+      reportError("Failed to save note", e);
     }
 
     // Delete any asset files removed from this note since the last save
@@ -228,7 +273,7 @@ export function MainPanel() {
     const newPaths = extractAssetPaths(content);
     for (const path of oldPaths) {
       if (!newPaths.has(path)) {
-        tauriCommands.deleteNote(path).catch(() => {
+        tauriCommands.deleteAsset(path).catch(() => {
           /* already gone, ignore */
         });
       }
@@ -258,7 +303,7 @@ export function MainPanel() {
     try {
       await tauriCommands.writeNote(updated.filePath, serializeNote(updated));
     } catch (e) {
-      console.error("Failed to save frontmatter:", e);
+      reportError("Failed to save frontmatter", e);
     }
   }
 
@@ -275,7 +320,7 @@ export function MainPanel() {
     try {
       await tauriCommands.deleteNote(selectedNote.filePath);
     } catch (e) {
-      console.error("Failed to delete note:", e);
+      reportError("Failed to delete note", e);
     }
   }
 

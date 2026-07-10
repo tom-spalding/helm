@@ -14,6 +14,7 @@ import { NOTE_STATES } from "../lib/constants";
 import { noteFilePath, serializeNote } from "../lib/note-parser";
 import { tauriCommands } from "../lib/tauri-commands";
 import { useNoteStore } from "../store/notes";
+import { reportError } from "../store/toast";
 import { useUIStore } from "../store/ui";
 import type { Note, NoteState } from "../types/note";
 
@@ -237,7 +238,7 @@ export function KanbanView() {
           updateNote(updated);
           writes.push(
             tauriCommands.writeNote(updated.filePath, serializeNote(updated)).catch((e) => {
-              console.error("Failed to save note:", e);
+              reportError("Failed to save note", e);
             }),
           );
         }
@@ -274,7 +275,7 @@ export function KanbanView() {
       addNote(note);
       navigate({ view: "notes", selectedNoteId: id, selectedGrouping });
     } catch (e) {
-      console.error("Failed to create note:", e);
+      reportError("Failed to create note", e);
     }
   }
 
