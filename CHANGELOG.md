@@ -1,3 +1,24 @@
+## v0.9.0 — 2026-07-10
+
+- Extract editor extensions so tests exercise the real code
+- Use a lightweight setter for live title edits
+- Place pin icon before the date in primary color
+- Exclude unmanaged notes from the Kanban board
+- Allow inserting content between adjacent code blocks
+- Drop code-block margin for even spacing
+- Sync note title live between editor and note list
+- Show pin icon by date for pinned notes
+- Keep nested lists tight (fix indent/outdent gap)
+- Balance code-block top/bottom padding
+- Make code-block punctuation legible in light mode
+- Paste verbatim inside code blocks
+- Fix New Subfolder + add folder Rename in LeftColumn (live sidebar)
+- Remove dead FileTree component
+- Add rename to note-list panel; unify rename logic and input
+- Document Linux installation steps and update Cargo.toml for cli.
+- chore: update package versions to 0.8.0 in package-lock.json and Cargo.lock
+- release: add Helm_0.8.0_aarch64.dmg
+
 ## v0.8.0 — 2026-06-17
 
 - feat: toggle markdown mode via Cmd+M menu item and fix event double-registration
