@@ -183,6 +183,64 @@ const HeadingKeyboardFix = Extension.create({
   },
 });
 
+// Give the user a text slot between/around back-to-back code blocks.
+// When two code blocks are adjacent there is no paragraph between them, so a
+// cursor can't land there and content can't be inserted. Pressing ArrowDown at
+// the end of a code block whose next sibling is another code block (or that sits
+// at the end of the doc) inserts an empty paragraph after it; ArrowUp at the
+// start of a code block whose previous sibling is another code block (or that is
+// the first node) inserts one before it. All other cases return false so normal
+// arrow navigation is untouched. Pairs with the .ProseMirror-gapcursor CSS in
+// globals.css that makes the click-between gap visible.
+const CodeBlockGapCursor = Extension.create({
+  name: "codeBlockGapCursor",
+  addKeyboardShortcuts() {
+    const insertParagraph = (
+      editor: import("@tiptap/react").Editor,
+      side: "before" | "after",
+    ): boolean => {
+      const { state } = editor;
+      const { $from, empty } = state.selection;
+      if (!empty) return false;
+      if ($from.parent.type.name !== "codeBlock") return false;
+
+      // Only act at the very start (ArrowUp) or very end (ArrowDown) of the block,
+      // so mid-block arrow presses navigate lines normally.
+      const atStart = $from.parentOffset === 0;
+      const atEnd = $from.parentOffset === $from.parent.content.size;
+      if (side === "before" && !atStart) return false;
+      if (side === "after" && !atEnd) return false;
+
+      const codeBlockDepth = $from.depth;
+      const index = $from.index(codeBlockDepth - 1);
+      const parent = $from.node(codeBlockDepth - 1);
+      const sibling =
+        side === "before" ? parent.maybeChild(index - 1) : parent.maybeChild(index + 1);
+      const siblingIsCodeBlock = sibling?.type.name === "codeBlock";
+      const atDocEdge = side === "before" ? index === 0 : index === parent.childCount - 1;
+
+      // Bail unless default navigation would otherwise trap the user: an adjacent
+      // code block leaves no landing slot, and a code block at the doc edge has none.
+      if (!siblingIsCodeBlock && !atDocEdge) return false;
+
+      const insertPos = side === "before" ? $from.before(codeBlockDepth) : $from.after(codeBlockDepth);
+      return editor.commands.command(({ tr, dispatch }) => {
+        const paragraph = state.schema.nodes.paragraph.create();
+        tr.insert(insertPos, paragraph);
+        // Cursor lands inside the new empty paragraph (insertPos + 1 = its content start).
+        tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
+        dispatch?.(tr);
+        return true;
+      });
+    };
+
+    return {
+      ArrowDown: ({ editor }) => insertParagraph(editor, "after"),
+      ArrowUp: ({ editor }) => insertParagraph(editor, "before"),
+    };
+  },
+});
+
 // Clear all marks when pressing Enter outside of lists/code blocks
 // so new lines never inherit bold, italic, etc.
 const ClearMarksOnEnter = Extension.create({
@@ -311,6 +369,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         TaskItemMarkdown.configure({ nested: true }),
         ClearMarksOnEnter,
         HeadingKeyboardFix,
+        CodeBlockGapCursor,
         Image.configure({ inline: false, allowBase64: false }),
         Table.configure({ resizable: false }),
         TableRow,

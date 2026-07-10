@@ -442,6 +442,34 @@ ul[data-type="taskList"] ul[data-type="taskList"] {
   color: var(--color-syntax-punctuation);
 }
 
+/* ── ProseMirror gap cursor ─────────────────────────────────── */
+/* Canonical gapcursor styles (from prosemirror-gapcursor) so the caret is
+   visible when it lands in a gap where no text can go — e.g. between two
+   adjacent code blocks. Theme-aware: the caret uses --color-base-content so it
+   shows in both light and dark themes instead of the plugin default black. */
+.ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+}
+.ProseMirror-gapcursor::after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid var(--color-base-content);
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+@keyframes ProseMirror-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
 .find-replace-highlight {
   background-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
   border-radius: 2px;
