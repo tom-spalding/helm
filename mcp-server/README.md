@@ -1,6 +1,6 @@
 # Helm MCP Server
 
-Exposes your Helm vault(s) to Claude and any other MCP-compatible AI tool. Supports full CRUD, zettelkasten graph navigation, multi-vault, and built-in prompts for common workflows.
+Exposes your Helm vault(s) to Claude and any other MCP-compatible AI tool. Supports full CRUD, zettelkasten graph navigation, note history with restore, a one-call daily briefing, multi-vault, and built-in prompts for common workflows.
 
 ## Setup
 
@@ -39,6 +39,8 @@ Use `HELM_VAULTS` (comma-separated) instead of `HELM_VAULT`:
 
 ## Tools
 
+### Read tools
+
 | Tool | Description |
 |------|-------------|
 | `get_rules` | Vault conventions — call this first in any session |
@@ -50,9 +52,45 @@ Use `HELM_VAULTS` (comma-separated) instead of `HELM_VAULT`:
 | `get_kanban` | All notes grouped by state (Prepare / Doing / Maintain / Done) |
 | `get_backlinks` | Find all notes that link TO a given note (inbound references) |
 | `get_tag_tree` | Hierarchical tag tree with note counts |
+
+### Write tools
+
+| Tool | Description |
+|------|-------------|
 | `create_note` | Create a note with full frontmatter support |
 | `update_note` | Update content/frontmatter — use `append_tags`/`append_links` to safely add without overwriting |
-| `delete_note` | Permanently delete a note (refuses if locked) |
+| `delete_note` | Delete a note (refuses if locked) — a snapshot is saved first, so deletes are recoverable |
+
+### History tools
+
+| Tool | Description |
+|------|-------------|
+| `get_note_history` | List the saved snapshots (versions) of a note |
+| `read_note_version` | Read the full content of a specific snapshot |
+| `restore_note_version` | Restore a note to a previous snapshot (the current version is snapshotted first, so restores are undoable) |
+
+### Daily digest
+
+| Tool | Description |
+|------|-------------|
+| `get_briefing` | One-call daily digest: overdue, due soon (7 days), blocked, doing, and stale Doing notes (untouched 14+ days) |
+
+## Note history
+
+Every `update_note` and `delete_note` first snapshots the note's previous version into `<vault>/.helm-history/<note-id>/` — the same history the Helm app's time machine uses, so versions created by the AI and by the app appear in one timeline. This means:
+
+- **Deletes are recoverable** — the last version is snapshotted before the file is removed.
+- **Restores are undoable** — `restore_note_version` snapshots the current version before overwriting, so you can always restore back.
+
+## Example prompts
+
+Things you can type in Claude Desktop once connected:
+
+- *"What should I focus on today?"* — `get_briefing`
+- *"Capture this idea: try spaced repetition for reading notes"* — `create_note`
+- *"What did my Project Alpha note say last week? Restore it if the current version lost the budget section."* — `get_note_history` / `read_note_version` / `restore_note_version`
+- *"Find everything blocked and tell me what's blocking it"* — `list_notes`
+- *"Summarize my #work/quarterly notes"* — `search_notes` / `list_notes` + `read_note`
 
 ## Resources
 
