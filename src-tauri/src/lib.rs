@@ -230,6 +230,7 @@ pub fn run() {
             rename_note,
             watch_vault,
             write_asset,
+            delete_asset,
             list_folders,
             create_folder,
             delete_folder,

@@ -111,9 +111,8 @@ fn collect_notes(dir: &PathBuf, notes: &mut Vec<NoteFile>) -> Result<(), String>
     Ok(())
 }
 
-#[tauri::command]
-pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
-    let path = PathBuf::from(&vault_path);
+fn list_notes_impl(vault_path: &str) -> Result<Vec<NoteFile>, String> {
+    let path = validate_path(vault_path)?;
     if !path.exists() {
         fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     }
@@ -124,35 +123,84 @@ pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
 }
 
 #[tauri::command]
+pub async fn list_notes(vault_path: String) -> Result<Vec<NoteFile>, String> {
+    list_notes_impl(&vault_path)
+}
+
+#[tauri::command]
 pub async fn read_note(file_path: String) -> Result<String, String> {
     let path = validate_path(&file_path)?;
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+// Crash-safe write: write to a temp file in the same directory, then rename
+// over the target. Rename is atomic on POSIX, so a crash mid-write can never
+// leave the note truncated — the old content survives until the rename lands.
+fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Path has no parent directory: {}", path.display()))?;
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("Path has no file name: {}", path.display()))?;
+    let tmp = parent.join(format!(".{}.tmp-{}", file_name.to_string_lossy(), std::process::id()));
+
+    fs::write(&tmp, content).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
 #[tauri::command]
 pub async fn write_note(file_path: String, content: String) -> Result<(), String> {
     let path = validate_path(&file_path)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    atomic_write(&path, content.as_bytes())
+}
+
+fn write_asset_impl(vault_path: &str, filename: &str, data: &[u8]) -> Result<String, String> {
+    let vault = validate_path(vault_path)?;
+    let assets_dir = vault.join("assets");
+    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+
+    // Drop any directory components, then sanitize what remains:
+    // allow only alphanumeric, dash, underscore, dot.
+    let base_name = std::path::Path::new(filename)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let safe_name: String = base_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .collect();
+    let safe_name = safe_name.trim_matches('.').to_string();
+    if safe_name.is_empty() {
+        return Err(format!("Invalid asset filename: {}", filename));
     }
-    fs::write(&path, content).map_err(|e| e.to_string())
+
+    let dest = assets_dir.join(&safe_name);
+    atomic_write(&dest, data)?;
+    Ok(dest.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub async fn write_asset(vault_path: String, filename: String, data: Vec<u8>) -> Result<String, String> {
-    let vault = PathBuf::from(&vault_path);
-    let assets_dir = vault.join("assets");
-    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+    write_asset_impl(&vault_path, &filename, &data)
+}
 
-    // Sanitize filename: allow only alphanumeric, dash, underscore, dot
-    let safe_name: String = filename
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
-        .collect();
+fn delete_asset_impl(file_path: &str) -> Result<(), String> {
+    let path = validate_path(file_path)?;
+    if path.extension().and_then(|e| e.to_str()) == Some("md") {
+        return Err(format!("Refusing to delete a note file as an asset: {}", file_path));
+    }
+    fs::remove_file(&path).map_err(|e| e.to_string())
+}
 
-    let dest = assets_dir.join(&safe_name);
-    fs::write(&dest, data).map_err(|e| e.to_string())?;
-    Ok(dest.to_string_lossy().to_string())
+#[tauri::command]
+pub async fn delete_asset(file_path: String) -> Result<(), String> {
+    delete_asset_impl(&file_path)
 }
 
 #[tauri::command]
@@ -185,6 +233,87 @@ pub async fn rename_folder(old_path: String, new_path: String) -> Result<(), Str
     let old = validate_path(&old_path)?;
     let new_p = validate_path(&new_path)?;
     fs::rename(&old, &new_p).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("helm-vault-test-{}", name));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn atomic_write_creates_file_with_content() {
+        let dir = temp_dir("atomic-create");
+        let path = dir.join("note.md");
+        atomic_write(&path, b"hello").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "hello");
+    }
+
+    #[test]
+    fn atomic_write_overwrites_existing_file() {
+        let dir = temp_dir("atomic-overwrite");
+        let path = dir.join("note.md");
+        fs::write(&path, "old").unwrap();
+        atomic_write(&path, b"new").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+    }
+
+    #[test]
+    fn atomic_write_leaves_no_temp_files() {
+        let dir = temp_dir("atomic-clean");
+        let path = dir.join("note.md");
+        atomic_write(&path, b"content").unwrap();
+        let entries: Vec<_> = fs::read_dir(&dir).unwrap().collect();
+        assert_eq!(entries.len(), 1, "only the target file should remain");
+    }
+
+    #[test]
+    fn list_notes_impl_rejects_relative_path() {
+        assert!(list_notes_impl("relative/path").is_err());
+    }
+
+    #[test]
+    fn list_notes_impl_rejects_parent_traversal() {
+        assert!(list_notes_impl("/tmp/../etc").is_err());
+    }
+
+    #[test]
+    fn write_asset_impl_rejects_relative_vault_path() {
+        assert!(write_asset_impl("relative/vault", "img.png", &[1, 2, 3]).is_err());
+    }
+
+    #[test]
+    fn write_asset_impl_strips_path_components_from_filename() {
+        let dir = temp_dir("asset-sanitize");
+        let dest = write_asset_impl(dir.to_str().unwrap(), "../../evil.png", &[1]).unwrap();
+        let dest_path = PathBuf::from(&dest);
+        // Must land inside <vault>/assets, regardless of traversal attempts
+        assert!(dest_path.starts_with(dir.join("assets")));
+        assert!(dest_path.exists());
+    }
+
+    #[test]
+    fn delete_asset_impl_refuses_markdown_files() {
+        let dir = temp_dir("asset-refuse-md");
+        let md = dir.join("note.md");
+        fs::write(&md, "content").unwrap();
+        assert!(delete_asset_impl(md.to_str().unwrap()).is_err());
+        assert!(md.exists(), "markdown file must not be deleted");
+    }
+
+    #[test]
+    fn delete_asset_impl_deletes_non_markdown_file() {
+        let dir = temp_dir("asset-delete");
+        let img = dir.join("img.png");
+        fs::write(&img, [1, 2, 3]).unwrap();
+        delete_asset_impl(img.to_str().unwrap()).unwrap();
+        assert!(!img.exists());
+    }
 }
 
 #[tauri::command]
