@@ -54,6 +54,10 @@
     var(--color-base-content)
   );
   --color-syntax-meta: var(--color-text-muted);
+  /* Punctuation ({} [] () , : ; etc.) gets the same color as body text — no blending needed.
+     Using base-content directly gives full contrast in both light and dark without looking
+     like a "special" token. Overridable per-theme if a subtler value is preferred. */
+  --color-syntax-punctuation: var(--color-base-content);
 
   /* ── Editor typography — overridden at runtime by applySettings() */
   --editor-font-size: 16px;
@@ -161,6 +165,11 @@ body {
   font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 1.6;
+  /* DaisyUI sets --tw-prose-pre-code to --color-neutral-content (near-white in light themes)
+     on the pre element, which conflicts with our light base-200 background.
+     Setting color explicitly here prevents that near-white from leaking into unclassed
+     text nodes or any hljs spans that might not be covered by the pre code override. */
+  color: var(--color-base-content);
 }
 .prose pre code {
   background: none;
@@ -411,6 +420,9 @@ ul[data-type="taskList"] ul[data-type="taskList"] {
 }
 .hljs-meta {
   color: var(--color-syntax-meta);
+}
+.hljs-punctuation {
+  color: var(--color-syntax-punctuation);
 }
 
 .find-replace-highlight {
