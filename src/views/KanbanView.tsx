@@ -158,7 +158,11 @@ export function KanbanView() {
       let changed = false;
       const next = { ...prev };
       for (const s of NOTE_STATES) {
-        const colIds = new Set(notes.filter((n) => n.frontmatter.state === s).map((n) => n.id));
+        const colIds = new Set(
+          notes
+            .filter((n) => n.frontmatter.state === s && !n.frontmatter.unmanaged)
+            .map((n) => n.id),
+        );
         const kept = (prev[s] ?? []).filter((id) => colIds.has(id));
         const added = [...colIds]
           .filter((id) => !kept.includes(id))
@@ -185,7 +189,9 @@ export function KanbanView() {
     const byId = new Map(notes.map((n) => [n.id, n]));
     const result: Record<string, Note[]> = {};
     for (const s of NOTE_STATES) {
-      result[s] = (items[s] ?? []).map((id) => byId.get(id)).filter((n): n is Note => !!n);
+      result[s] = (items[s] ?? [])
+        .map((id) => byId.get(id))
+        .filter((n): n is Note => !!n && !n.frontmatter.unmanaged);
     }
     return result;
   }, [notes, items]);
