@@ -333,15 +333,15 @@ export function NoteListPanel() {
                     <span className="w-full truncate text-sm font-medium">
                       {note.frontmatter.title || "Untitled"}
                     </span>
-                    <span className="flex items-center gap-1 text-xs opacity-40">
-                      {note.frontmatter.updated}
+                    <span className="flex items-center gap-1 text-xs">
                       {note.frontmatter.pinned && (
                         <Icon
                           icon="uil:map-pin"
-                          className="h-3.5 w-3.5 opacity-80"
+                          className="h-3.5 w-3.5 text-[var(--color-primary)]"
                           aria-label="Pinned"
                         />
                       )}
+                      <span className="opacity-40">{note.frontmatter.updated}</span>
                     </span>
                     {note.frontmatter.tags.length > 0 && (
                       <div className="mt-0.5 flex flex-wrap gap-1">
