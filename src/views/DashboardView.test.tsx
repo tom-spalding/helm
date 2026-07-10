@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useNoteStore } from "../store/notes";
 import { useUIStore } from "../store/ui";
@@ -128,8 +128,9 @@ describe("DashboardView — with notes", () => {
       ],
     });
     render(<DashboardView />);
-    expect(screen.getByText("Alpha Note")).toBeInTheDocument();
-    expect(screen.getByText("Beta Note")).toBeInTheDocument();
+    const list = within(screen.getByTestId("note-list"));
+    expect(list.getByText("Alpha Note")).toBeInTheDocument();
+    expect(list.getByText("Beta Note")).toBeInTheDocument();
   });
 
   it("shows 'urgent' badge for urgent notes", () => {
@@ -270,24 +271,26 @@ describe("DashboardView — chip filtering", () => {
 
   it("clicking 'Do' chip filters the note list to urgent+important notes only", () => {
     render(<DashboardView />);
+    const list = () => within(screen.getByTestId("note-list"));
     // Before filtering both notes are visible
-    expect(screen.getByText("Urgent Task")).toBeInTheDocument();
-    expect(screen.getByText("Normal Task")).toBeInTheDocument();
+    expect(list().getByText("Urgent Task")).toBeInTheDocument();
+    expect(list().getByText("Normal Task")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /\bDo\b/ }));
 
-    expect(screen.getByText("Urgent Task")).toBeInTheDocument();
-    expect(screen.queryByText("Normal Task")).not.toBeInTheDocument();
+    expect(list().getByText("Urgent Task")).toBeInTheDocument();
+    expect(list().queryByText("Normal Task")).not.toBeInTheDocument();
   });
 
   it("clicking an active filter chip a second time resets to 'All Notes'", () => {
     render(<DashboardView />);
+    const list = () => within(screen.getByTestId("note-list"));
     const doButton = screen.getByRole("button", { name: /\bDo\b/ });
     fireEvent.click(doButton); // activate
-    expect(screen.queryByText("Normal Task")).not.toBeInTheDocument();
+    expect(list().queryByText("Normal Task")).not.toBeInTheDocument();
 
     fireEvent.click(doButton); // deactivate (toggle off)
-    expect(screen.getByText("Normal Task")).toBeInTheDocument();
+    expect(list().getByText("Normal Task")).toBeInTheDocument();
   });
 
   it("clicking 'Blocked' chip shows only blocked notes", () => {
@@ -299,10 +302,11 @@ describe("DashboardView — chip filtering", () => {
     useNoteStore.setState({ ...useNoteStore.getState(), notes: [urgentNote, blockedNote] });
 
     render(<DashboardView />);
+    const list = () => within(screen.getByTestId("note-list"));
     fireEvent.click(screen.getByRole("button", { name: /^\d+\s*Blocked/ }));
 
-    expect(screen.getByText("Blocked Task")).toBeInTheDocument();
-    expect(screen.queryByText("Urgent Task")).not.toBeInTheDocument();
+    expect(list().getByText("Blocked Task")).toBeInTheDocument();
+    expect(list().queryByText("Urgent Task")).not.toBeInTheDocument();
   });
 
   it("the active filter label appears in the note list header", () => {
@@ -339,8 +343,73 @@ describe("DashboardView — note click navigation", () => {
     useNoteStore.setState({ ...useNoteStore.getState(), notes: [note] });
 
     render(<DashboardView />);
-    fireEvent.click(screen.getByRole("button", { name: /Click Me/ }));
+    const list = within(screen.getByTestId("note-list"));
+    fireEvent.click(list.getByRole("button", { name: /Click Me/ }));
 
+    expect(useNoteStore.getState().selectedNoteId).toBe("n1");
+    expect(useUIStore.getState().activeView).toBe("notes");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Daily briefing card
+// ---------------------------------------------------------------------------
+
+describe("DashboardView — daily briefing", () => {
+  it("shows 'all clear' when nothing needs attention", () => {
+    useNoteStore.setState({
+      ...useNoteStore.getState(),
+      notes: [
+        makeNote({
+          id: "n1",
+          filePath: "/vault/a.md",
+          frontmatter: { ...makeNote().frontmatter, id: "n1", state: "Done" },
+        }),
+      ],
+    });
+    render(<DashboardView />);
+    const briefing = within(screen.getByTestId("daily-briefing"));
+    expect(briefing.getByText(/all clear/i)).toBeInTheDocument();
+  });
+
+  it("lists overdue notes with their deadline", () => {
+    useNoteStore.setState({
+      ...useNoteStore.getState(),
+      notes: [
+        makeNote({
+          id: "n1",
+          filePath: "/vault/a.md",
+          frontmatter: {
+            ...makeNote().frontmatter,
+            id: "n1",
+            title: "Late Report",
+            state: "Prepare",
+            deadline: "2020-01-01",
+          },
+        }),
+      ],
+    });
+    render(<DashboardView />);
+    const briefing = within(screen.getByTestId("daily-briefing"));
+    expect(briefing.getByText(/Overdue/)).toBeInTheDocument();
+    expect(briefing.getByRole("button", { name: /Late Report/ })).toBeInTheDocument();
+  });
+
+  it("clicking a briefing note navigates to it", () => {
+    useNoteStore.setState({
+      ...useNoteStore.getState(),
+      notes: [
+        makeNote({
+          id: "n1",
+          filePath: "/vault/a.md",
+          frontmatter: { ...makeNote().frontmatter, id: "n1", title: "In Flight", state: "Doing" },
+        }),
+      ],
+    });
+    render(<DashboardView />);
+    const briefing = within(screen.getByTestId("daily-briefing"));
+    // The note may appear in multiple briefing sections (Doing + Stale) — any entry navigates
+    fireEvent.click(briefing.getAllByRole("button", { name: /In Flight/ })[0]);
     expect(useNoteStore.getState().selectedNoteId).toBe("n1");
     expect(useUIStore.getState().activeView).toBe("notes");
   });

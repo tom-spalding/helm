@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { buildBriefing } from "../lib/briefing";
 import { NOTE_STATES } from "../lib/constants";
 import { useNoteStore } from "../store/notes";
 import { useThemeStore } from "../store/theme";
@@ -121,6 +122,109 @@ const tooltipStyle = {
 const tooltipTextStyle = { color: "var(--color-base-content)" };
 
 /**
+ * One section of the daily briefing — a colored label followed by clickable
+ * note titles. Renders nothing when the section is empty.
+ * @internal
+ */
+function BriefingSection({
+  label,
+  color,
+  notes,
+  detail,
+  onNoteClick,
+}: {
+  label: string;
+  color: string;
+  notes: Note[];
+  detail?: (n: Note) => string;
+  onNoteClick: (n: Note) => void;
+}) {
+  if (notes.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color }}>
+        {label} · {notes.length}
+      </span>
+      {notes.map((n) => (
+        <button
+          type="button"
+          key={n.id}
+          onClick={() => onNoteClick(n)}
+          className="text-sm underline-offset-2 hover:underline"
+        >
+          {n.frontmatter.title || "Untitled"}
+          {detail && <span className="ml-1 text-xs opacity-50">{detail(n)}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Daily briefing card — a rules-based digest of what needs attention:
+ * overdue and upcoming deadlines, blocked work, in-flight notes, and
+ * Doing notes that haven't been touched in two weeks.
+ * @internal
+ */
+function BriefingCard({ notes, onNoteClick }: { notes: Note[]; onNoteClick: (n: Note) => void }) {
+  const today = new Date().toISOString().split("T")[0];
+  const b = buildBriefing(notes, today);
+  const allClear =
+    b.overdue.length === 0 &&
+    b.dueSoon.length === 0 &&
+    b.blocked.length === 0 &&
+    b.doing.length === 0 &&
+    b.staleDoing.length === 0;
+
+  return (
+    <div className="card bg-base-200 mb-6" data-testid="daily-briefing">
+      <div className="card-body gap-3 p-4">
+        <p className="card-title text-sm">Daily Briefing</p>
+        {allClear ? (
+          <p className="text-sm opacity-50">All clear — nothing overdue, blocked, or in flight.</p>
+        ) : (
+          <>
+            <BriefingSection
+              label="Overdue"
+              color="var(--color-error)"
+              notes={b.overdue}
+              detail={(n) => `(${n.frontmatter.deadline})`}
+              onNoteClick={onNoteClick}
+            />
+            <BriefingSection
+              label="Due soon"
+              color="var(--color-warning)"
+              notes={b.dueSoon}
+              detail={(n) => `(${n.frontmatter.deadline})`}
+              onNoteClick={onNoteClick}
+            />
+            <BriefingSection
+              label="Blocked"
+              color="var(--color-warning)"
+              notes={b.blocked}
+              onNoteClick={onNoteClick}
+            />
+            <BriefingSection
+              label="Doing"
+              color="var(--color-info)"
+              notes={b.doing}
+              onNoteClick={onNoteClick}
+            />
+            <BriefingSection
+              label="Stale (14d+)"
+              color="var(--color-secondary)"
+              notes={b.staleDoing}
+              detail={(n) => `(last touched ${n.frontmatter.updated})`}
+              onNoteClick={onNoteClick}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Dashboard view component.
  * Shows summary chips, statistics charts, and a filterable note list.
  * Charts and notes are scoped to the active filter (Eisenhower quadrant or all).
@@ -198,6 +302,8 @@ export function DashboardView() {
     <div className="h-full overflow-y-auto p-6">
       <h2 className="mb-2 text-xl font-bold">Dashboard</h2>
       <p className="mb-6 text-sm opacity-50">{notes.length} notes in vault</p>
+
+      <BriefingCard notes={notes} onNoteClick={handleNoteClick} />
 
       {/* Summary chips */}
       <div className="mb-8 flex flex-wrap gap-3">
@@ -374,7 +480,7 @@ export function DashboardView() {
       )}
 
       {/* Note list for active filter */}
-      <div className="card bg-base-200">
+      <div className="card bg-base-200" data-testid="note-list">
         <div className="card-body p-0">
           <div className="flex items-center justify-between border-b border-base-300 px-4 py-3">
             <p className="font-semibold">{filterLabel[activeFilter]}</p>
