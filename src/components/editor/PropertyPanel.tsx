@@ -13,6 +13,7 @@ interface PropertyPanelProps {
   onDelete?: () => void;
   markdownMode?: boolean;
   onToggleMarkdown?: () => void;
+  onShowHistory?: () => void;
 }
 
 // Fields handled explicitly — excluded from the "extra fields" section
@@ -122,6 +123,7 @@ export function PropertyPanel({
   onDelete,
   markdownMode,
   onToggleMarkdown,
+  onShowHistory,
 }: PropertyPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -199,6 +201,27 @@ export function PropertyPanel({
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             )}
+          </button>
+        )}
+        {onShowHistory && (
+          <button
+            type="button"
+            onClick={onShowHistory}
+            title="Note history"
+            className="btn btn-ghost btn-sm btn-square opacity-60 hover:opacity-100"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
           </button>
         )}
         {onToggleMarkdown && (
