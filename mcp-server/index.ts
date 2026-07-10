@@ -11,6 +11,8 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import matter from "gray-matter";
+import { buildBriefing } from "./briefing";
+import { listNoteHistory, snapshotNoteFile } from "./history";
 
 // ── Vault resolution ──────────────────────────────────────────────────────────
 // Supports multiple vaults via HELM_VAULTS (comma-separated paths) or HELM_VAULT (single path)
@@ -86,6 +88,11 @@ function listAllNotes(): Note[] {
     }
   }
   return notes;
+}
+
+/** Vault root for a loaded note (used to locate its .helm-history dir). */
+function vaultPathFor(note: Note): string {
+  return VAULTS.find((v) => v.name === note.vaultName)?.path ?? path.dirname(note.filePath);
 }
 
 function writeNote(filePath: string, frontmatter: NoteData, content: string): void {
@@ -217,6 +224,15 @@ STATES
 
 PROTECTED FIELDS
 • id and locked can never be changed via the MCP server — changes will be silently ignored.
+
+NOTE HISTORY (TIME MACHINE)
+• Every update_note and delete_note automatically snapshots the previous version first.
+• Snapshots live in <vault>/.helm-history/<note-id>/ — shared with the Helm app's own history.
+• Use get_note_history → read_note_version → restore_note_version to inspect or roll back.
+• Restores are themselves snapshotted, so they are always undoable.
+
+DAILY DIGEST
+• Prefer get_briefing over assembling overdue/blocked/doing state from multiple list_notes calls.
 `.trim();
 
 // ── Server ────────────────────────────────────────────────────────────────────
@@ -444,7 +460,7 @@ Read get_rules for full merge semantics.`,
     {
       name: "delete_note",
       description:
-        "Permanently delete a note from disk. Refuses if the note is locked. This cannot be undone.",
+        "Delete a note from disk. Refuses if the note is locked. A snapshot is kept in note history first, so the note can be recovered with get_note_history + restore_note_version.",
       inputSchema: {
         type: "object",
         properties: {
@@ -452,6 +468,50 @@ Read get_rules for full merge semantics.`,
         },
         required: ["id"],
       },
+    },
+    {
+      name: "get_note_history",
+      description:
+        "List a note's history snapshots (newest first). Snapshots are taken automatically before every write — by both the Helm app and this server.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Note ULID." },
+        },
+        required: ["id"],
+      },
+    },
+    {
+      name: "read_note_version",
+      description:
+        "Read the full raw markdown (frontmatter + body) of one history snapshot. Get ts_ms from get_note_history.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Note ULID." },
+          ts_ms: { type: "number", description: "Snapshot timestamp from get_note_history." },
+        },
+        required: ["id", "ts_ms"],
+      },
+    },
+    {
+      name: "restore_note_version",
+      description:
+        "Restore a note to a history snapshot. The current state is snapshotted first, so a restore is always undoable. Refuses if the note is locked. The note's id and locked fields are preserved.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Note ULID." },
+          ts_ms: { type: "number", description: "Snapshot timestamp from get_note_history." },
+        },
+        required: ["id", "ts_ms"],
+      },
+    },
+    {
+      name: "get_briefing",
+      description:
+        "One-call daily digest: overdue deadlines, deadlines due within 7 days, blocked notes, notes in Doing, and Doing notes untouched for 14+ days. Prefer this over assembling the picture from multiple list_notes calls.",
+      inputSchema: { type: "object", properties: {} },
     },
   ],
 }));
@@ -851,6 +911,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
 
     const content = args?.content !== undefined ? String(args.content) : note.content;
+
+    // Time machine: snapshot the current on-disk version before overwriting,
+    // mirroring what the Helm app does. Never blocks the write.
+    try {
+      snapshotNoteFile(vaultPathFor(note), id, note.filePath);
+    } catch {
+      /* best-effort */
+    }
+
     writeNote(note.filePath, updatedFrontmatter, content);
 
     return {
@@ -884,13 +953,127 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
+    // Force a snapshot (minAge 0) so a delete is always recoverable via history
+    try {
+      snapshotNoteFile(vaultPathFor(note), id, note.filePath, 0);
+    } catch {
+      /* best-effort */
+    }
+
     fs.unlinkSync(note.filePath);
 
     return {
       content: [
         {
           type: "text",
-          text: `Deleted: "${note.frontmatter.title}" (${id})`,
+          text: `Deleted: "${note.frontmatter.title}" (${id}). A snapshot was kept — recoverable via get_note_history/restore_note_version.`,
+        },
+      ],
+    };
+  }
+
+  // ── get_note_history ───────────────────────────────────────────────────────
+  if (name === "get_note_history") {
+    const id = String(args?.id);
+    const note = notes.find((n) => n.frontmatter.id === id);
+    if (!note) return { content: [{ type: "text", text: `Note not found: ${id}` }] };
+
+    const entries = listNoteHistory(vaultPathFor(note), id).map((e) => ({
+      ts_ms: e.tsMs,
+      when: new Date(e.tsMs).toISOString(),
+    }));
+    return { content: [{ type: "text", text: JSON.stringify(entries, null, 2) }] };
+  }
+
+  // ── read_note_version ──────────────────────────────────────────────────────
+  if (name === "read_note_version") {
+    const id = String(args?.id);
+    const tsMs = Number(args?.ts_ms);
+    const note = notes.find((n) => n.frontmatter.id === id);
+    if (!note) return { content: [{ type: "text", text: `Note not found: ${id}` }] };
+
+    const entry = listNoteHistory(vaultPathFor(note), id).find((e) => e.tsMs === tsMs);
+    if (!entry) {
+      return {
+        content: [
+          { type: "text", text: `No snapshot at ts_ms=${tsMs}. Call get_note_history first.` },
+        ],
+      };
+    }
+    return { content: [{ type: "text", text: fs.readFileSync(entry.path, "utf-8") }] };
+  }
+
+  // ── restore_note_version ───────────────────────────────────────────────────
+  if (name === "restore_note_version") {
+    const id = String(args?.id);
+    const tsMs = Number(args?.ts_ms);
+    const note = notes.find((n) => n.frontmatter.id === id);
+    if (!note) return { content: [{ type: "text", text: `Note not found: ${id}` }] };
+
+    if (note.frontmatter.locked) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Refused: "${note.frontmatter.title}" is locked. Unlock it in Helm first.`,
+          },
+        ],
+      };
+    }
+
+    const vaultPath = vaultPathFor(note);
+    const entry = listNoteHistory(vaultPath, id).find((e) => e.tsMs === tsMs);
+    if (!entry) {
+      return {
+        content: [
+          { type: "text", text: `No snapshot at ts_ms=${tsMs}. Call get_note_history first.` },
+        ],
+      };
+    }
+
+    // Snapshot the current state first (forced) so the restore itself is undoable
+    snapshotNoteFile(vaultPath, id, note.filePath, 0);
+
+    const raw = fs.readFileSync(entry.path, "utf-8");
+    const { data, content } = matter(raw);
+    const restored: NoteData = {
+      ...(data as NoteData),
+      id: note.frontmatter.id, // never restore a stale/foreign id
+      locked: note.frontmatter.locked, // never restore lock state
+      updated: new Date().toISOString().split("T")[0],
+    };
+    writeNote(note.filePath, restored, content);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Restored "${note.frontmatter.title}" (${id}) to the ${new Date(tsMs).toISOString()} snapshot. The pre-restore state was snapshotted and is itself restorable.`,
+        },
+      ],
+    };
+  }
+
+  // ── get_briefing ───────────────────────────────────────────────────────────
+  if (name === "get_briefing") {
+    const today = new Date().toISOString().split("T")[0];
+    const b = buildBriefing(notes, today);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              date: today,
+              overdue: b.overdue.map(noteSummary),
+              due_soon: b.dueSoon.map(noteSummary),
+              blocked: b.blocked.map(noteSummary),
+              doing: b.doing.map(noteSummary),
+              stale_doing: b.staleDoing.map(noteSummary),
+            },
+            null,
+            2,
+          ),
         },
       ],
     };
@@ -1006,14 +1189,13 @@ Steps:
             text: `Generate my daily standup from my Helm vault.
 
 Steps:
-1. Call list_notes with state="Doing" to get everything I'm currently working on.
-2. Also call list_notes with blocked=true to surface any blockers.
-3. Also call list_notes with overdue=true to catch any missed deadlines.
-4. Format the output as a standup:
-   - **Yesterday / In Progress**: what I'm working on (Doing notes)
+1. Call get_briefing — it returns overdue, due-soon, blocked, doing, and stale-doing notes in one call.
+2. Format the output as a standup:
+   - **In Progress**: what I'm working on (doing)
    - **Blockers**: any blocked notes
-   - **Overdue**: any past-deadline items
-   - **Suggested next**: pick the highest-priority Prepare note based on urgent+important flags`,
+   - **Overdue / Due soon**: deadline items, most urgent first
+   - **Going stale**: doing notes untouched 14+ days — suggest closing or re-committing
+   - **Suggested next**: pick the highest-priority Prepare note (list_notes with quadrant="do", state="Prepare")`,
           },
         },
       ],
