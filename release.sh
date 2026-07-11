@@ -116,13 +116,15 @@ echo "  Artifacts: $RELEASE_DIR"
 echo "  Run 'git push && git push --tags' to publish"
 
 DMG_ASSET="$RELEASE_DIR/Helm_${NEW_VERSION}_aarch64.dmg"
+DMG_LATEST="$RELEASE_DIR/Helm_aarch64.dmg"
+cp "$DMG_ASSET" "$DMG_LATEST"
 
 if [[ -t 0 ]]; then
   read -r -p "Push and create a draft GitHub Release now? [y/N] " CREATE_DRAFT
   if [[ "$CREATE_DRAFT" =~ ^[Yy]$ ]]; then
     if ! command -v gh >/dev/null 2>&1; then
       echo "✗ gh not found — install GitHub CLI, then create the draft manually:"
-      echo "  gh release create \"v$NEW_VERSION\" --draft --title \"Helm v$NEW_VERSION\" --notes \"\" \"$DMG_ASSET\""
+      echo "  gh release create \"v$NEW_VERSION\" --draft --title \"Helm v$NEW_VERSION\" --notes \"\" \"$DMG_LATEST\""
       exit 1
     fi
     if ! gh auth status >/dev/null 2>&1; then
@@ -139,7 +141,7 @@ if [[ -t 0 ]]; then
     gh release create "v$NEW_VERSION" --draft \
       --title "Helm v$NEW_VERSION" \
       --notes "" \
-      "$DMG_ASSET"
+      "$DMG_LATEST"
 
     echo "✓ Draft v$NEW_VERSION created — Linux CI will upload packages and publish."
   fi

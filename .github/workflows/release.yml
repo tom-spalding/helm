@@ -61,18 +61,23 @@ jobs:
           fi
 
           shopt -s nullglob
-          artifacts=(
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/rpm/*.rpm
-            src-tauri/target/release/bundle/appimage/*.AppImage
-          )
-          if (( ${#artifacts[@]} == 0 )); then
-            echo "No .deb / .rpm / .AppImage artifacts found"
+          deb=(src-tauri/target/release/bundle/deb/*.deb)
+          rpm=(src-tauri/target/release/bundle/rpm/*.rpm)
+          appimage=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if (( ${#deb[@]} != 1 || ${#rpm[@]} != 1 || ${#appimage[@]} != 1 )); then
+            echo "Expected one .deb, one .rpm, and one .AppImage"
             ls -laR src-tauri/target/release/bundle || true
             exit 1
           fi
-          gh release upload "$TAG" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" --clobber
-          printf 'Uploaded:\n'
-          printf '  %s\n' "${artifacts[@]}"
+
+          # Stable names only (no versioned duplicates on the Release)
+          cp "${deb[0]}" Helm_amd64.deb
+          cp "${rpm[0]}" Helm_amd64.rpm
+          cp "${appimage[0]}" Helm_amd64.AppImage
+
+          gh release upload "$TAG" \
+            Helm_amd64.deb Helm_amd64.rpm Helm_amd64.AppImage \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          printf 'Uploaded:\n  Helm_amd64.deb\n  Helm_amd64.rpm\n  Helm_amd64.AppImage\n'
 
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
