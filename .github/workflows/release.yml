@@ -1,0 +1,77 @@
+# Build Linux packages for a draft GitHub Release, then publish it.
+# Create a draft Release (e.g. with the .dmg); this workflow attaches
+# .deb / .rpm / .AppImage and undrafts the Release when done.
+name: release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    if: github.event.release.draft == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            rpm \
+            libfuse2
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Linux bundles
+        run: npm run tauri build -- --bundles deb,rpm,appimage
+
+      - name: Upload artifacts to Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          shopt -s nullglob
+          artifacts=(
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          )
+          if (( ${#artifacts[@]} == 0 )); then
+            echo "No .deb / .rpm / .AppImage artifacts found"
+            ls -laR src-tauri/target/release/bundle || true
+            exit 1
+          fi
+          gh release upload "$TAG" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          printf 'Uploaded:\n'
+          printf '  %s\n' "${artifacts[@]}"
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
