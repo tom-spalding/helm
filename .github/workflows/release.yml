@@ -1,18 +1,18 @@
-# Build Linux packages for a draft GitHub Release, then publish it.
-# Create a draft Release (e.g. with the .dmg); this workflow attaches
-# .deb / .rpm / .AppImage and undrafts the Release when done.
+# Build Linux packages when a vX.Y.Z tag is pushed, attach them to the
+# existing draft GitHub Release, then publish. Push the tag, then create
+# the draft with the .dmg immediately after — see release.sh.
 name: release
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 jobs:
   linux:
-    if: github.event.release.draft == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,11 +50,16 @@ jobs:
       - name: Build Linux bundles
         run: npm run tauri build -- --bundles deb,rpm,appimage
 
-      - name: Upload artifacts to Release
+      - name: Upload artifacts and publish Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.ref_name }}
         run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "No GitHub Release for $TAG — quitting early."
+            exit 0
+          fi
+
           shopt -s nullglob
           artifacts=(
             src-tauri/target/release/bundle/deb/*.deb
@@ -70,8 +75,4 @@ jobs:
           printf 'Uploaded:\n'
           printf '  %s\n' "${artifacts[@]}"
 
-      - name: Publish Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

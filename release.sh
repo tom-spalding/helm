@@ -75,12 +75,10 @@ fi
 
 echo "→ Changelog updated"
 
-# Commit and tag
+# Commit version bump (tag after the DMG commit so the tag includes release artifacts)
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml CHANGELOG.md
 git commit -m "chore: release v$NEW_VERSION"
-git tag "v$NEW_VERSION"
 
-echo "→ Tagged v$NEW_VERSION"
 echo "→ Building (signing + notarization can take a few minutes)..."
 
 npm run tauri build
@@ -110,6 +108,7 @@ cp -r "$APP_PATH" "$RELEASE_DIR/" 2>/dev/null || true
 
 git add "$RELEASE_DIR/Helm_${NEW_VERSION}_aarch64.dmg"
 git commit -m "release: add Helm_${NEW_VERSION}_aarch64.dmg"
+git tag "v$NEW_VERSION"
 
 echo ""
 echo "✓ v$NEW_VERSION released"
@@ -131,6 +130,8 @@ if [[ -t 0 ]]; then
       exit 1
     fi
 
+    # Tag push starts Linux CI. Create the draft immediately after so it exists
+    # by the time the job uploads (draft created events do not trigger Actions).
     echo "→ Pushing commits and tags..."
     git push && git push --tags
 
