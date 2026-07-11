@@ -24,7 +24,20 @@ fn detach_from_terminal() {
             _ => libc::_exit(0), // parent: returns the shell prompt
         }
 
-        libc::setsid(); // new session, detached from the controlling TTY
+        if libc::setsid() == -1 {
+            // Uncommon: already a session leader. Fork again so the
+            // grandchild can create a new session; otherwise terminal
+            // signals (SIGHUP, Ctrl-C) may still reach the app.
+            match libc::fork() {
+                -1 => libc::_exit(1),
+                0 => {
+                    if libc::setsid() == -1 {
+                        libc::_exit(1);
+                    }
+                }
+                _ => libc::_exit(0),
+            }
+        }
 
         let devnull = libc::open(
             b"/dev/null\0".as_ptr() as *const libc::c_char,
