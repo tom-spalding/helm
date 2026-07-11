@@ -55,6 +55,12 @@ fn detach_from_terminal() {
 }
 
 fn main() {
+    // Handle before detach / GUI init so stdout stays attached to the terminal.
+    if std::env::args().any(|a| a == "--version" || a == "-V") {
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     #[cfg(all(unix, not(debug_assertions)))]
     detach_from_terminal();
 
