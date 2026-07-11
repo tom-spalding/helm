@@ -85,8 +85,10 @@ export default function App() {
         closing = true;
         try {
           await flushPendingSaves();
-        } finally {
-          void tauriCommands.exitApp();
+          await tauriCommands.exitApp();
+        } catch (e) {
+          closing = false;
+          reportError("Failed to quit Helm", e);
         }
       })
       .then((fn) => {
