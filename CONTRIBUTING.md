@@ -126,10 +126,9 @@ The script:
 
 `sign.sh` lives at the repo root, is git-ignored, and must export the four Apple signing environment variables (see the Creating a DMG section below).
 
-After the script completes, publish with:
-```sh
-git push && git push --tags
-```
+When prompted by the release script, answer **y** to push and create a draft GitHub Release (attaches the `.dmg`). CI builds Linux packages, uploads them, and publishes the Release automatically.
+
+If you decline, push with `git push && git push --tags`, then create a draft Release with the `.dmg` yourself.
 
 ---
 
