@@ -327,11 +327,13 @@ export function MainPanel() {
 
   async function handleDelete() {
     if (!selectedNote || selectedNote.frontmatter.locked) return;
-    const confirmed = await confirm(
-      `Move "${selectedNote.frontmatter.title || "Untitled"}" to Trash?`,
-      { title: "Move to Trash", kind: "warning" },
-    );
-    if (!confirmed) return;
+    if (!useSettingsStore.getState().settings.skipDeleteConfirmation) {
+      const confirmed = await confirm(
+        `Move "${selectedNote.frontmatter.title || "Untitled"}" to Trash?`,
+        { title: "Move to Trash", kind: "warning" },
+      );
+      if (!confirmed) return;
+    }
     useTrashStore.getState().addToTrash(selectedNote);
     selectNote(null);
     removeNote(selectedNote.id);

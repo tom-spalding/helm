@@ -7,6 +7,7 @@ import { buildTree, type TreeNode } from "../../lib/file-tree";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { type TagNode, useNoteStore } from "../../store/notes";
+import { useSettingsStore } from "../../store/settings";
 import { reportError } from "../../store/toast";
 import { useTrashStore } from "../../store/trash";
 import { type Grouping, useUIStore, type View } from "../../store/ui";
@@ -419,12 +420,14 @@ export function LeftColumn() {
   }
 
   async function handleDeleteFolder(folderPath: string) {
-    const name = folderPath.split("/").pop();
-    const ok = await confirm(
-      `Delete folder "${name}" and all its contents? This cannot be undone.`,
-      { title: "Delete Folder", kind: "warning" },
-    );
-    if (!ok) return;
+    if (!useSettingsStore.getState().settings.skipDeleteConfirmation) {
+      const name = folderPath.split("/").pop();
+      const ok = await confirm(
+        `Delete folder "${name}" and all its contents? This cannot be undone.`,
+        { title: "Delete Folder", kind: "warning" },
+      );
+      if (!ok) return;
+    }
     const {
       notes: allNotes,
       selectedNoteId,

@@ -27,6 +27,9 @@ describe("useSettingsStore", () => {
       expect(result.current.settings.showNoteCountOnTags).toBe(
         DEFAULT_SETTINGS.showNoteCountOnTags,
       );
+      expect(result.current.settings.skipDeleteConfirmation).toBe(
+        DEFAULT_SETTINGS.skipDeleteConfirmation,
+      );
     });
 
     it("persists to localStorage after update", () => {

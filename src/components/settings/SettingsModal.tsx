@@ -1,3 +1,4 @@
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { THEMES } from "../../lib/themes";
 import { useSettingsStore } from "../../store/settings";
@@ -222,6 +223,17 @@ function ThemesTab() {
 function GeneralTab() {
   const { settings, updateSettings } = useSettingsStore();
 
+  async function handleSkipDeleteConfirmation(enabled: boolean) {
+    if (enabled) {
+      const ok = await confirm(
+        "Deletes will no longer ask for confirmation. Continue only if you know what you're doing.",
+        { title: "I know what I'm doing", kind: "warning" },
+      );
+      if (!ok) return;
+    }
+    updateSettings({ skipDeleteConfirmation: enabled });
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <CheckboxRow
@@ -248,6 +260,11 @@ function GeneralTab() {
         label="Default to Markdown view"
         checked={settings.defaultNoteView === "markdown"}
         onChange={(v) => updateSettings({ defaultNoteView: v ? "markdown" : "editor" })}
+      />
+      <CheckboxRow
+        label="Skip delete confirmation"
+        checked={settings.skipDeleteConfirmation}
+        onChange={handleSkipDeleteConfirmation}
       />
     </div>
   );

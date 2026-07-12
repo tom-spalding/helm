@@ -6,6 +6,7 @@ import { buildTree, getAllFolderPaths } from "../../lib/file-tree";
 import { serializeNote } from "../../lib/note-parser";
 import { tauriCommands } from "../../lib/tauri-commands";
 import { useNoteStore } from "../../store/notes";
+import { useSettingsStore } from "../../store/settings";
 import { reportError } from "../../store/toast";
 import { useTrashStore } from "../../store/trash";
 import { useUIStore } from "../../store/ui";
@@ -171,11 +172,13 @@ export function NoteListPanel() {
   }
 
   async function handleDeleteNote(note: Note) {
-    const ok = await confirm(`Move "${note.frontmatter.title || "Untitled"}" to Trash?`, {
-      title: "Move to Trash",
-      kind: "warning",
-    });
-    if (!ok) return;
+    if (!useSettingsStore.getState().settings.skipDeleteConfirmation) {
+      const ok = await confirm(`Move "${note.frontmatter.title || "Untitled"}" to Trash?`, {
+        title: "Move to Trash",
+        kind: "warning",
+      });
+      if (!ok) return;
+    }
     addToTrash(note);
     if (note.id === selectedNoteId) selectNote(null);
     removeNote(note.id);

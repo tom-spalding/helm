@@ -6,6 +6,8 @@ export interface Settings {
   pinnedNotesFloat: boolean;
   showNoteCountOnTags: boolean;
   defaultNoteView: "editor" | "markdown";
+  /** When true, skip the confirm dialog before deleting notes or folders. */
+  skipDeleteConfirmation: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -16,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pinnedNotesFloat: true,
   showNoteCountOnTags: true,
   defaultNoteView: "editor",
+  skipDeleteConfirmation: false,
 };
 
 export function applySettings(s: Settings): void {
