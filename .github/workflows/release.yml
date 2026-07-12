@@ -81,4 +81,6 @@ jobs:
             --repo "$GITHUB_REPOSITORY" --clobber
           printf 'Uploaded:\n  Helm_amd64.deb\n  Helm_amd64.rpm\n  Helm_amd64.AppImage\n'
 
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          # Leave the Release as a draft so the maintainer can update the notes
+          # before publishing. Uncomment to auto-publish after Linux uploads:
+          # gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
