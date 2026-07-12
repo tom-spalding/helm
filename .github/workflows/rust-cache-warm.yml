@@ -21,6 +21,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # Must match release.yml so tag jobs can restore this cache.
+          shared-key: helm-linux
 
       - name: Install Linux build dependencies
         run: |
