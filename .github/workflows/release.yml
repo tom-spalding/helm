@@ -14,6 +14,10 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "2G"
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +26,8 @@ jobs:
           node-version: 20
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -49,6 +55,10 @@ jobs:
 
       - name: Build Linux bundles
         run: npm run tauri build -- --bundles deb,rpm,appimage
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
 
       - name: Upload artifacts and publish Release
         env:
