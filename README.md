@@ -10,7 +10,12 @@ Helm is a personal knowledge management app for macOS and Linux. Notes are plain
 
 **macOS:** 
 
-Download the [latest `.dmg`](../../releases/latest/download/Helm_aarch64.dmg) from the [Releases](../../releases) page, open it, and drag Helm to your Applications folder.
+```sh
+brew tap jordanpapaleo/helm https://github.com/jordanpapaleo/helm.git
+brew install --cask jordanpapaleo/helm/helm
+```
+
+Or download the [latest `.dmg`](../../releases/latest/download/Helm_aarch64.dmg) from the [Releases](../../releases) page, open it, and drag Helm to your Applications folder.
 
 **Linux (Debian/Ubuntu):** 
 

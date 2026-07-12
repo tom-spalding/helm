@@ -53,6 +53,9 @@ sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" src-tauri/tauri
 # Sync Cargo.toml (first occurrence — the [package] version)
 awk -v ver="$NEW_VERSION" 'done { print; next } /^version = "/ { sub(/^version = ".*"/, "version = \"" ver "\""); done=1 } { print }' src-tauri/Cargo.toml > src-tauri/Cargo.toml.tmp && mv src-tauri/Cargo.toml.tmp src-tauri/Cargo.toml
 
+# Sync Homebrew cask version (sha256 updated after the DMG is built)
+sed -i '' "s/^  version \".*\"/  version \"$NEW_VERSION\"/" Casks/helm.rb
+
 # Generate changelog from commits since last tag
 LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 if [[ -n "$LAST_TAG" ]]; then
@@ -76,7 +79,7 @@ fi
 echo "→ Changelog updated"
 
 # Commit version bump (tag after the DMG commit so the tag includes release artifacts)
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml CHANGELOG.md
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml CHANGELOG.md Casks/helm.rb
 git commit -m "chore: release v$NEW_VERSION"
 
 echo "→ Building (signing + notarization can take a few minutes)..."
@@ -106,17 +109,20 @@ mkdir -p "$RELEASE_DIR"
 cp "$DMG_PATH" "$RELEASE_DIR/"
 cp -r "$APP_PATH" "$RELEASE_DIR/" 2>/dev/null || true
 
-git add "$RELEASE_DIR/Helm_${NEW_VERSION}_aarch64.dmg"
+DMG_ASSET="$RELEASE_DIR/Helm_${NEW_VERSION}_aarch64.dmg"
+DMG_LATEST="$RELEASE_DIR/Helm_aarch64.dmg"
+cp "$DMG_ASSET" "$DMG_LATEST"
+
+DMG_SHA=$(shasum -a 256 "$DMG_LATEST" | awk '{ print $1 }')
+sed -i '' "s/^  sha256 \".*\"/  sha256 \"$DMG_SHA\"/" Casks/helm.rb
+
+git add "$DMG_ASSET" Casks/helm.rb
 git commit -m "release: add Helm_${NEW_VERSION}_aarch64.dmg"
 git tag "v$NEW_VERSION"
 
 echo ""
 echo "✓ v$NEW_VERSION released"
 echo "  Artifacts: $RELEASE_DIR"
-
-DMG_ASSET="$RELEASE_DIR/Helm_${NEW_VERSION}_aarch64.dmg"
-DMG_LATEST="$RELEASE_DIR/Helm_aarch64.dmg"
-cp "$DMG_ASSET" "$DMG_LATEST"
 
 if [[ -t 0 ]]; then
   read -r -p "Push and create a draft GitHub Release now? [y/N] " CREATE_DRAFT
