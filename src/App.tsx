@@ -75,30 +75,48 @@ export default function App() {
   // the main window leaves the hidden quick-capture window (and the process)
   // alive after the first ⌘⇧Space use.
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let unlistenClose: (() => void) | undefined;
+    let unlistenQuit: (() => void) | undefined;
     let closing = false;
+
+    const quitApp = async () => {
+      if (closing) return;
+      closing = true;
+      try {
+        await flushPendingSaves();
+        await tauriCommands.exitApp();
+      } catch (e) {
+        closing = false;
+        reportError("Failed to quit Helm", e);
+      }
+    };
 
     getCurrentWindow()
       .onCloseRequested(async (event) => {
         event.preventDefault();
-        if (closing) return;
-        closing = true;
-        try {
-          await flushPendingSaves();
-          await tauriCommands.exitApp();
-        } catch (e) {
-          closing = false;
-          reportError("Failed to quit Helm", e);
-        }
+        await quitApp();
       })
       .then((fn) => {
-        unlisten = fn;
+        unlistenClose = fn;
       })
       .catch(() => {
         // Not running inside a Tauri window (tests, plain browser dev)
       });
 
-    return () => unlisten?.();
+    listen("quit-app", () => {
+      void quitApp();
+    })
+      .then((fn) => {
+        unlistenQuit = fn;
+      })
+      .catch(() => {
+        // Not running inside a Tauri window (tests, plain browser dev)
+      });
+
+    return () => {
+      unlistenClose?.();
+      unlistenQuit?.();
+    };
   }, []);
 
   if (loading) {
