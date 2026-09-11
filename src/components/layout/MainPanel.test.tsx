@@ -70,7 +70,14 @@ function setup(note: Note, markdownMode: boolean) {
     vaults: [VAULT],
     activeVaultId: VAULT.id,
   });
-  useUIStore.setState({ activeView: "notes", markdownMode });
+  useUIStore.setState({
+    activeView: "notes",
+    markdownMode,
+    // Every test in this file starts unsplit; the split tests opt in.
+    panes: [{ id: "pane-1", noteId: null, markdownMode }],
+    activePaneId: "pane-1",
+    splitDirection: "row",
+  });
   return render(<MainPanel />);
 }
 
@@ -727,5 +734,122 @@ describe("MainPanel — scroll position survives the markdown/editor toggle", ()
     flushFrames();
 
     expect(other.scrollTop).toBe(0);
+  });
+});
+
+describe("MainPanel — split view", () => {
+  const LEFT = makeNote();
+  const RIGHT = makeNote({
+    id: "01JPMXYZ456",
+    filePath: "/vault/right.md",
+    fileName: "right.md",
+    content: "Right content",
+    frontmatter: { ...makeNote().frontmatter, id: "01JPMXYZ456", title: "Right Note" },
+  });
+
+  function setupSplit() {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, defaultNoteView: "markdown" } });
+    useNoteStore.setState({
+      notes: [LEFT, RIGHT],
+      selectedNoteId: LEFT.id,
+      vaults: [VAULT],
+      activeVaultId: VAULT.id,
+    });
+    useUIStore.setState({
+      activeView: "notes",
+      markdownMode: true,
+      panes: [{ id: "pane-1", noteId: null, markdownMode: true }],
+      activePaneId: "pane-1",
+      splitDirection: "row",
+    });
+    const result = render(<MainPanel />);
+    act(() => {
+      useUIStore.getState().splitPane(RIGHT.id, "row");
+    });
+    return result;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders a single pane until the view is split", () => {
+    const { container } = setup(makeNote(), true);
+    expect(container.querySelectorAll("[data-pane-id]")).toHaveLength(1);
+  });
+
+  it("shows both notes side by side after a split", () => {
+    const { container } = setupSplit();
+
+    expect(container.querySelectorAll("[data-pane-id]")).toHaveLength(2);
+    expect(screen.getByDisplayValue("Test Note")).toBeTruthy();
+    expect(screen.getByDisplayValue("Right Note")).toBeTruthy();
+  });
+
+  it("switches only the active pane when a new note is selected", () => {
+    setupSplit();
+
+    act(() => {
+      useNoteStore.getState().selectNote(LEFT.id);
+    });
+
+    // Both show it now: the left pane held it already, the active pane followed
+    // the click.
+    expect(screen.getAllByDisplayValue("Test Note")).toHaveLength(2);
+    expect(screen.queryByDisplayValue("Right Note")).toBeNull();
+  });
+
+  it("makes a pane active when it is clicked", () => {
+    const { container } = setupSplit();
+    const panes = container.querySelectorAll("[data-pane-id]");
+    const leftId = panes[0].getAttribute("data-pane-id");
+
+    act(() => {
+      fireEvent.mouseDown(panes[0]);
+    });
+
+    expect(useUIStore.getState().activePaneId).toBe(leftId);
+    expect(useNoteStore.getState().selectedNoteId).toBe(LEFT.id);
+  });
+
+  it("then applies the next note click to the pane that was clicked into", () => {
+    const { container } = setupSplit();
+    const panes = container.querySelectorAll("[data-pane-id]");
+
+    act(() => {
+      fireEvent.mouseDown(panes[0]);
+    });
+    act(() => {
+      useNoteStore.getState().selectNote(RIGHT.id);
+    });
+
+    // The left pane was clicked into and re-pointed; the right never moved.
+    expect(screen.getAllByDisplayValue("Right Note")).toHaveLength(2);
+  });
+
+  it("closes a pane and leaves the remaining one showing its note", () => {
+    const { container } = setupSplit();
+
+    act(() => {
+      useUIStore.getState().closePane(useUIStore.getState().activePaneId);
+    });
+
+    expect(container.querySelectorAll("[data-pane-id]")).toHaveLength(1);
+    expect(screen.getByDisplayValue("Test Note")).toBeTruthy();
+    expect(screen.queryByDisplayValue("Right Note")).toBeNull();
+  });
+
+  it("gives each pane its own markdown/editor mode", () => {
+    const { container } = setupSplit();
+    const panes = container.querySelectorAll("[data-pane-id]");
+
+    expect(container.querySelectorAll("textarea")).toHaveLength(2);
+
+    act(() => {
+      useUIStore.getState().setMarkdownMode(false);
+    });
+
+    expect(container.querySelectorAll("textarea")).toHaveLength(1);
+    expect(panes[0].querySelector("textarea")).toBeTruthy();
   });
 });

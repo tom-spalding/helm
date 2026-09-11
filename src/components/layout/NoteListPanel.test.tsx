@@ -172,3 +172,61 @@ describe("NoteListPanel — sorting by last modified", () => {
     expect(stamp.textContent).toBe("2026-07-31");
   });
 });
+
+describe("NoteListPanel — splitting the view from the context menu", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUIStore.setState({
+      panes: [{ id: "pane-1", noteId: null, markdownMode: false }],
+      activePaneId: "pane-1",
+      splitDirection: "row",
+    });
+  });
+
+  it("splits side by side, showing the right-clicked note in the new pane", () => {
+    resetStores(makeNote());
+    useNoteStore.setState({ selectedNoteId: null });
+    render(<NoteListPanel />);
+
+    fireEvent.contextMenu(screen.getByText("Note"));
+    fireEvent.click(screen.getByText("Split Right"));
+
+    const { panes, splitDirection, activePaneId } = useUIStore.getState();
+    expect(panes).toHaveLength(2);
+    expect(splitDirection).toBe("row");
+    expect(activePaneId).toBe(panes[1].id);
+    expect(useNoteStore.getState().selectedNoteId).toBe("01JPMXYZ123");
+  });
+
+  it("stacks the panes when splitting down", () => {
+    resetStores(makeNote());
+    render(<NoteListPanel />);
+
+    fireEvent.contextMenu(screen.getByText("Note"));
+    fireEvent.click(screen.getByText("Split Down"));
+
+    expect(useUIStore.getState().panes).toHaveLength(2);
+    expect(useUIStore.getState().splitDirection).toBe("column");
+  });
+
+  it("leaves the note already open where it is", () => {
+    const open = makeNote();
+    const other: Note = {
+      ...makeNote(),
+      id: "01JPMXYZ456",
+      filePath: "/vault/other.md",
+      fileName: "other.md",
+      frontmatter: { ...makeNote().frontmatter, id: "01JPMXYZ456", title: "Other" },
+    };
+    resetStores(open);
+    useNoteStore.setState({ notes: [open, other], selectedNoteId: open.id });
+    render(<NoteListPanel />);
+
+    fireEvent.contextMenu(screen.getByText("Other"));
+    fireEvent.click(screen.getByText("Split Right"));
+
+    const { panes } = useUIStore.getState();
+    expect(panes[0].noteId).toBe(open.id);
+    expect(useNoteStore.getState().selectedNoteId).toBe(other.id);
+  });
+});

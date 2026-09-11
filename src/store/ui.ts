@@ -9,6 +9,21 @@ export interface Grouping {
   id: string | null; // folder path for "folder", null for "all"
 }
 
+/** Splits are flat: a second split appends to the same row/column, never nests. */
+export type SplitDirection = "row" | "column";
+
+export interface Pane {
+  id: string;
+  /**
+   * Only read while this pane is in the background — the active pane always
+   * shows `selectedNoteId`. One source of truth, so clicking a note in the list
+   * re-points exactly one pane and there is nothing to keep in sync.
+   */
+  noteId: string | null;
+  /** Background-only, same as `noteId`; the active pane uses `markdownMode`. */
+  markdownMode: boolean;
+}
+
 export interface NavEntry {
   view: View;
   selectedNoteId: string | null;
@@ -39,12 +54,32 @@ interface UIStore {
   toggleMarkdownMode: () => void;
   setMarkdownMode: (v: boolean) => void;
 
+  panes: Pane[];
+  activePaneId: string;
+  splitDirection: SplitDirection;
+  /** Opens `noteId` in a new pane, which becomes the active one. */
+  splitPane: (noteId: string | null, direction: SplitDirection) => void;
+  setActivePane: (paneId: string) => void;
+  closePane: (paneId: string) => void;
+  setPaneNote: (paneId: string, noteId: string | null) => void;
+
   navHistory: NavEntry[];
   navIndex: number;
   navigate: (entry: NavEntry) => void;
   goBack: () => void;
   goForward: () => void;
 }
+
+/** Past four, panes are too narrow to read — a further split opens in place instead. */
+export const MAX_PANES = 4;
+
+let paneCounter = 0;
+function nextPaneId(): string {
+  paneCounter += 1;
+  return `pane-${paneCounter}`;
+}
+
+const FIRST_PANE_ID = nextPaneId();
 
 const initialEntry: NavEntry = {
   view: "dashboard",
@@ -64,6 +99,80 @@ export const useUIStore = create<UIStore>((set, get) => ({
   markdownMode: false,
   toggleMarkdownMode: () => set((s) => ({ markdownMode: !s.markdownMode })),
   setMarkdownMode: (markdownMode) => set({ markdownMode }),
+
+  panes: [{ id: FIRST_PANE_ID, noteId: null, markdownMode: false }],
+  activePaneId: FIRST_PANE_ID,
+  splitDirection: "row",
+
+  splitPane: (noteId, direction) => {
+    const { panes, activePaneId, markdownMode } = get();
+    const noteStore = useNoteStore.getState();
+
+    if (panes.length >= MAX_PANES) {
+      set({ activeView: "notes" });
+      noteStore.selectNote(noteId);
+      return;
+    }
+
+    // Freeze the outgoing pane *before* selectNote, which overwrites selectedNoteId.
+    const frozen = panes.map((p) =>
+      p.id === activePaneId ? { ...p, noteId: noteStore.selectedNoteId, markdownMode } : p,
+    );
+    const pane: Pane = { id: nextPaneId(), noteId, markdownMode };
+
+    set({
+      panes: [...frozen, pane],
+      activePaneId: pane.id,
+      splitDirection: direction,
+      activeView: "notes",
+    });
+    noteStore.selectNote(noteId);
+  },
+
+  setActivePane: (paneId) => {
+    const { panes, activePaneId, markdownMode } = get();
+    if (paneId === activePaneId) return;
+    const target = panes.find((p) => p.id === paneId);
+    if (!target) return;
+    const noteStore = useNoteStore.getState();
+
+    set({
+      panes: panes.map((p) =>
+        p.id === activePaneId ? { ...p, noteId: noteStore.selectedNoteId, markdownMode } : p,
+      ),
+      activePaneId: paneId,
+      markdownMode: target.markdownMode,
+    });
+    noteStore.selectNote(target.noteId);
+  },
+
+  setPaneNote: (paneId, noteId) =>
+    set((state) => ({
+      panes: state.panes.map((p) => (p.id === paneId ? { ...p, noteId } : p)),
+    })),
+
+  closePane: (paneId) => {
+    const { panes, activePaneId } = get();
+    if (panes.length <= 1) return;
+    const index = panes.findIndex((p) => p.id === paneId);
+    if (index === -1) return;
+    const remaining = panes.filter((p) => p.id !== paneId);
+
+    if (paneId !== activePaneId) {
+      set({ panes: remaining });
+      return;
+    }
+
+    // The neighbour inherits the selection by becoming active.
+    const next = remaining[Math.min(index, remaining.length - 1)];
+    const noteStore = useNoteStore.getState();
+    set({
+      panes: remaining,
+      activePaneId: next.id,
+      markdownMode: next.markdownMode,
+    });
+    noteStore.selectNote(next.noteId);
+  },
 
   navHistory: [initialEntry],
   navIndex: 0,

@@ -18,7 +18,7 @@ import { RenameInput } from "../sidebar/RenameInput";
 type MenuState = { x: number; y: number; items: ContextMenuItem[] } | null;
 
 export function NoteListPanel() {
-  const { selectedGrouping, setView, navigate } = useUIStore();
+  const { selectedGrouping, setView, navigate, splitPane } = useUIStore();
   const {
     notes,
     selectedNoteId,
@@ -315,6 +315,18 @@ export function NoteListPanel() {
                             label: note.frontmatter.unmanaged ? "Mark Managed" : "Mark Unmanaged",
                             onClick: () => handleFrontmatterToggle(note, "unmanaged"),
                           },
+                          { kind: "separator" },
+                          {
+                            kind: "action",
+                            label: "Split Right",
+                            onClick: () => splitPane(note.id, "row"),
+                          },
+                          {
+                            kind: "action",
+                            label: "Split Down",
+                            onClick: () => splitPane(note.id, "column"),
+                          },
+                          { kind: "separator" },
                           {
                             kind: "submenu",
                             label: "Move to…",

@@ -15,6 +15,8 @@ interface PropertyPanelProps {
   markdownMode?: boolean;
   onToggleMarkdown?: () => void;
   onShowHistory?: () => void;
+  /** Only supplied while the view is split. */
+  onClosePane?: () => void;
 }
 
 // Fields handled explicitly — excluded from the "extra fields" section
@@ -125,6 +127,7 @@ export function PropertyPanel({
   markdownMode,
   onToggleMarkdown,
   onShowHistory,
+  onClosePane,
 }: PropertyPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -284,6 +287,27 @@ export function PropertyPanel({
               <path d="M19 6l-1 14H6L5 6" />
               <path d="M10 11v6M14 11v6" />
               <path d="M9 6V4h6v2" />
+            </svg>
+          </button>
+        )}
+        {onClosePane && (
+          <button
+            type="button"
+            onClick={onClosePane}
+            title="Close pane"
+            className="btn btn-ghost btn-sm btn-square opacity-60 hover:opacity-100"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         )}
